@@ -1,1 +1,5 @@
-export default function P(){return <div className="p-8">liste</div>}
+import { TodoList } from "@/components/list/todo-list";
+
+export default function ListePage() {
+  return <TodoList />;
+}
