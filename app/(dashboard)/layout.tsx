@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { CardModal } from "@/components/board/card-modal";
 import { Topbar } from "@/components/layout/topbar";
 import { WorkspaceProvider } from "@/components/providers/workspace-provider";
 import { getActiveWorkspace } from "@/lib/actions/workspace";
@@ -36,6 +37,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Topbar />
         </Suspense>
         <main className="min-h-0 flex-1 overflow-auto">{children}</main>
+        <Suspense>
+          <CardModal />
+        </Suspense>
       </div>
     </WorkspaceProvider>
   );
