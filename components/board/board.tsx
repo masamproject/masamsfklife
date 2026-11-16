@@ -22,9 +22,9 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Task } from "@/db/schema";
 import { useIsDesktop } from "@/lib/hooks/use-desktop";
+import { PLAN_LIMITS } from "@/lib/plan";
 import { useDataActions, useWorkspaceData } from "@/lib/hooks/use-data";
 
-const FREE_LIST_LIMIT = 3;
 
 // Görev sürüklerken görev > liste önceliği; liste sürüklerken yalnızca listeler.
 const collision: CollisionDetection = (args) => {
@@ -72,7 +72,7 @@ export function Board() {
   }
 
   const { lists, tasks, members } = data;
-  const limitReached = ws.plan === "free" && lists.length >= FREE_LIST_LIMIT;
+  const limitReached = ws.plan === "free" && lists.length >= PLAN_LIMITS.free.lists;
 
   function onDragStart(e: DragStartEvent) {
     setActive(String(e.active.id));
@@ -179,7 +179,7 @@ export function Board() {
         <div className="w-72 shrink-0 space-y-1">
           {limitReached ? (
             <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-              Free planda en fazla {FREE_LIST_LIMIT} liste olabilir. Daha fazlası için Pro&apos;ya geç.
+              Free planda en fazla {PLAN_LIMITS.free.lists} liste olabilir. Daha fazlası için Pro&apos;ya geç.
             </p>
           ) : (
             <div className="rounded-xl bg-muted/40 p-2">

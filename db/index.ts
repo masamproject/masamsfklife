@@ -26,4 +26,12 @@ function create() {
 type Db = ReturnType<typeof drizzleNeon<typeof schema>>;
 
 const globalForDb = globalThis as unknown as { __db?: Db };
-export const db: Db = (globalForDb.__db ??= create() as unknown as Db);
+
+/** Lazy: bağlantı ilk sorguda kurulur (build sırasında env olmayabilir). */
+export const db: Db = new Proxy({} as Db, {
+  get(_t, prop) {
+    const real = (globalForDb.__db ??= create() as unknown as Db);
+    const v = Reflect.get(real as object, prop);
+    return typeof v === "function" ? v.bind(real) : v;
+  },
+});

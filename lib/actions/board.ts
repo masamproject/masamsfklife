@@ -6,8 +6,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { lists, notes, tasks, user, workspaceMembers, workspaces } from "@/db/schema";
 import { workspaceAction } from "@/lib/actions/safe-action";
+import { PLAN_LIMITS } from "@/lib/plan";
 
-const FREE_LIST_LIMIT = 3;
 
 const id = z.string().min(1).max(64);
 const position = z.string().min(1).max(64);
@@ -67,8 +67,8 @@ export const createList = workspaceAction(
         .select({ id: lists.id })
         .from(lists)
         .where(and(eq(lists.workspaceId, ctx.workspaceId), isNull(lists.deletedAt)));
-      if (existing.length >= FREE_LIST_LIMIT) {
-        throw new Error(`Free planda en fazla ${FREE_LIST_LIMIT} liste olabilir. Pro'ya geç.`);
+      if (existing.length >= PLAN_LIMITS.free.lists) {
+        throw new Error(`Free planda en fazla ${PLAN_LIMITS.free.lists} liste olabilir. Pro'ya geç.`);
       }
     }
     await db.insert(lists).values({

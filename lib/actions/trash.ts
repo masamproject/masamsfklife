@@ -1,9 +1,10 @@
 "use server";
 
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { lists, notes, tasks } from "@/db/schema";
+import { lists, notes, tasks, workspaces } from "@/db/schema";
+import { PLAN_LIMITS } from "@/lib/plan";
 import { workspaceAction } from "@/lib/actions/safe-action";
 
 const kind = z.enum(["list", "task", "note"]);
@@ -32,6 +33,21 @@ export const getTrash = workspaceAction(z.void(), async (_, ctx) => {
 
 export const restoreItem = workspaceAction(z.object({ kind, id }), async (d, ctx) => {
   if (d.kind === "list") {
+    // Geri yüklemek plan sınırını aşmak için bir yol olmamalı
+    const [ws] = await db
+      .select({ plan: workspaces.plan })
+      .from(workspaces)
+      .where(eq(workspaces.id, ctx.workspaceId))
+      .limit(1);
+    if (ws?.plan !== "pro") {
+      const live = await db
+        .select({ id: lists.id })
+        .from(lists)
+        .where(and(eq(lists.workspaceId, ctx.workspaceId), isNull(lists.deletedAt)));
+      if (live.length >= PLAN_LIMITS.free.lists) {
+        throw new Error(`Free planda en fazla ${PLAN_LIMITS.free.lists} liste olabilir.`);
+      }
+    }
     await db
       .update(lists)
       .set({ deletedAt: null })

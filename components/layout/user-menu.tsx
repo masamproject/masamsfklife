@@ -17,7 +17,7 @@ import {
 import { signOut } from "@/lib/auth-client";
 
 export function UserMenu() {
-  const { user, plan, role } = useWorkspace();
+  const { id: workspaceId, user, plan, role } = useWorkspace();
   const router = useRouter();
   const qc = useQueryClient();
   const checkout = process.env.NEXT_PUBLIC_CHECKOUT_URL;
@@ -45,7 +45,15 @@ export function UserMenu() {
         {plan === "free" && (
           <DropdownMenuItem
             disabled={!checkout}
-            onClick={() => checkout && window.open(checkout, "_blank")}
+            onClick={() => {
+              if (!checkout) return;
+              // Ödeme sağlayıcısı webhook'ta workspace'i bu özel alandan tanır
+              const sep = checkout.includes("?") ? "&" : "?";
+              window.open(
+                `${checkout}${sep}checkout[custom][workspace_id]=${encodeURIComponent(workspaceId)}`,
+                "_blank",
+              );
+            }}
           >
             <CreditCard className="mr-2 h-4 w-4" />
             {checkout ? "Pro'ya geç" : "Pro'ya geç (yakında)"}
