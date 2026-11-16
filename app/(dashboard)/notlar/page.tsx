@@ -1,1 +1,10 @@
-export default function P(){return <div className="p-8">notlar</div>}
+import { Suspense } from "react";
+import { NotesView } from "@/components/notes/notes-view";
+
+export default function NotlarPage() {
+  return (
+    <Suspense>
+      <NotesView />
+    </Suspense>
+  );
+}
