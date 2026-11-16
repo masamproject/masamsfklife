@@ -1,11 +1,29 @@
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { getDatabase } from "@netlify/database";
+import { drizzle as drizzleNeon } from "drizzle-orm/neon-http";
+import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL tanımlı değil (.env.local)");
+/**
+ * Netlify Database bağlantısı (NETLIFY_DB_URL).
+ *  - production/serverless: Neon HTTP sürücüsü
+ *  - yerel (netlify dev): pg pool
+ * İki sürücünün sorgu API'si aynı; transaction/batch farkı yüzünden
+ * kod tarafında yalnızca ortak API kullanılır.
+ */
+function create() {
+  const conn = getDatabase({
+    connectionString:
+      process.env.NETLIFY_DB_URL ??
+      process.env.NETLIFY_DATABASE_URL ??
+      process.env.DATABASE_URL,
+  });
+  if (conn.driver === "serverless") {
+    return drizzleNeon(conn.httpClient, { schema });
+  }
+  return drizzlePg(conn.pool, { schema });
 }
 
-const sql = neon(process.env.DATABASE_URL);
-export const db = drizzle(sql, { schema });
-export type DB = typeof db;
+type Db = ReturnType<typeof drizzleNeon<typeof schema>>;
+
+const globalForDb = globalThis as unknown as { __db?: Db };
+export const db: Db = (globalForDb.__db ??= create() as unknown as Db);
