@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,10 @@ import { signIn, signUp } from "@/lib/auth-client";
 
 export function AuthForm({ mode }: { mode: "giris" | "kayit" }) {
   const router = useRouter();
+  const params = useSearchParams();
+  const rawNext = params.get("next");
+  // yalnızca site içi yollar (open redirect önlemi)
+  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/pano";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const isSignup = mode === "kayit";
@@ -31,12 +35,12 @@ export function AuthForm({ mode }: { mode: "giris" | "kayit" }) {
       setError(res.error.message ?? "Bir hata oluştu.");
       return;
     }
-    router.replace("/pano");
+    router.replace(next);
     router.refresh();
   }
 
   async function google() {
-    await signIn.social({ provider: "google", callbackURL: "/pano" });
+    await signIn.social({ provider: "google", callbackURL: next });
   }
 
   return (

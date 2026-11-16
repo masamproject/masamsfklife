@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { AuthForm } from "@/components/auth/auth-form";
 
 export default function KayitPage() {
-  return <AuthForm mode="kayit" />;
+  return (
+    <Suspense>
+      <AuthForm mode="kayit" />
+    </Suspense>
+  );
 }
