@@ -1,7 +1,9 @@
 import { Suspense } from "react";
-import { CardModal } from "@/components/board/card-modal";
+import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { FilterProvider } from "@/components/providers/filter-provider";
 import { WorkspaceProvider } from "@/components/providers/workspace-provider";
+import { TaskModal } from "@/components/tasks/task-modal";
 import { getActiveWorkspace } from "@/lib/actions/workspace";
 import { requireSession } from "@/lib/session";
 
@@ -32,15 +34,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
         },
       }}
     >
-      <div className="flex h-screen flex-col">
-        <Suspense>
+      <FilterProvider>
+        <div className="min-h-screen bg-background">
           <Topbar />
-        </Suspense>
-        <main className="min-h-0 flex-1 overflow-auto">{children}</main>
+          <div className="md:flex md:gap-7 md:px-4">
+            <Sidebar />
+            <main className="min-w-0 flex-1 px-3 pb-20 pt-4 md:px-0">{children}</main>
+          </div>
+        </div>
         <Suspense>
-          <CardModal />
+          <TaskModal />
         </Suspense>
-      </div>
+      </FilterProvider>
     </WorkspaceProvider>
   );
 }

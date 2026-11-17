@@ -54,7 +54,7 @@ export function fromDateInput(v: string) {
   return new Date(y, m - 1, d, 12, 0, 0);
 }
 
-export const PRIORITY_LABEL = { low: "Düşük", medium: "Orta", high: "Yüksek" } as const;
+export const PRIORITY_LABEL = { high: "Yüksek", medium: "Orta", low: "Düşük" } as const;
 
 export function initials(name: string) {
   return name
@@ -64,3 +64,33 @@ export function initials(name: string) {
     .slice(0, 2)
     .toUpperCase();
 }
+
+/* ---------- tarih/boyut biçimleri (prototip ile aynı) ---------- */
+const dayDiff = (d: Date) => Math.round((startOfDay(new Date(d)).getTime() - startOfDay(new Date()).getTime()) / 864e5);
+
+export function fmtDay(d: Date, withYear?: boolean) {
+  return new Date(d).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: withYear ? "numeric" : undefined });
+}
+
+/** "Bugün", "Yarın", "3 gün gecikti", "Cuma", "12 Mar" */
+export function fmtDue(d: Date) {
+  const n = dayDiff(d);
+  if (n === 0) return "Bugün";
+  if (n === 1) return "Yarın";
+  if (n === -1) return "Dün";
+  if (n < 0) return `${-n} gün gecikti`;
+  if (n < 7) return new Date(d).toLocaleDateString("tr-TR", { weekday: "long" });
+  return fmtDay(d, new Date(d).getFullYear() !== new Date().getFullYear());
+}
+
+export function fmtStamp(d: Date) {
+  return new Date(d).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+export function fmtSize(b: number) {
+  return b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+}
+
+export const parseTags = (s: string) => Array.from(new Set(s.split(",").map((x) => x.trim()).filter(Boolean)));
+
+export const PALETTE = ["#e03131", "#c2255c", "#f08c00", "#2f9e44", "#12b5a0", "#1c7ed6", "#7048e8", "#868e96"];

@@ -1,146 +1,93 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { NotebookText, RotateCcw, SquareCheck, Columns3 } from "lucide-react";
-import { useState } from "react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Skeleton } from "@/components/ui/skeleton";
+import * as api from "@/lib/actions/data";
 import { unwrap } from "@/lib/actions/unwrap";
-import { emptyTrash, getTrash, purgeItem } from "@/lib/actions/trash";
-import { useDataActions } from "@/lib/hooks/use-data";
+import { dataKey, trashKey, useDataActions, type Kind } from "@/lib/hooks/use-data";
+import { fmtStamp } from "@/lib/ui";
 
-type Kind = "list" | "task" | "note";
-const META: Record<Kind, { label: string; icon: typeof NotebookText }> = {
-  list: { label: "Listeler", icon: Columns3 },
-  task: { label: "Görevler", icon: SquareCheck },
-  note: { label: "Notlar", icon: NotebookText },
-};
-
-/** İki adımlı onay: ilk tık "Emin misin?" gösterir, ikinci tık işlemi yapar. */
-function ConfirmButton({
-  label,
-  onConfirm,
-  disabled,
-}: {
-  label: string;
-  onConfirm: () => void;
-  disabled?: boolean;
-}) {
-  const [armed, setArmed] = useState(false);
-  if (!armed) {
-    return (
-      <Button
-        size="sm"
-        variant="ghost"
-        className="text-destructive hover:text-destructive"
-        disabled={disabled}
-        onClick={() => setArmed(true)}
-      >
-        {label}
-      </Button>
-    );
-  }
-  return (
-    <span className="flex items-center gap-1">
-      <span className="text-xs text-destructive">Emin misin?</span>
-      <Button
-        size="sm"
-        variant="destructive"
-        onClick={() => {
-          setArmed(false);
-          onConfirm();
-        }}
-      >
-        Evet, sil
-      </Button>
-      <Button size="sm" variant="ghost" onClick={() => setArmed(false)}>
-        Vazgeç
-      </Button>
-    </span>
-  );
-}
+const GROUPS: [string, keyof NonNullable<Awaited<ReturnType<typeof load>>>, Kind][] = [
+  ["Görevler", "tasks", "task"],
+  ["Notlar", "notes", "note"],
+  ["Projeler", "projects", "project"],
+  ["Dosyalar", "files", "file"],
+  ["Defterler", "notebooks", "notebook"],
+  ["Bölümler", "sections", "section"],
+  ["Listeler", "lists", "list"],
+];
+const load = () => unwrap(api.getTrash());
 
 export function TrashView() {
   const ws = useWorkspace();
   const qc = useQueryClient();
-  const { restore } = useDataActions();
+  const a = useDataActions();
   const canPurge = ws.role === "owner" || ws.role === "admin";
-  const key = ["trash", ws.id];
+  const { data, isLoading } = useQuery({ queryKey: trashKey(ws.id), queryFn: load });
 
-  const { data, isLoading } = useQuery({ queryKey: key, queryFn: () => unwrap(getTrash()) });
-
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: trashKey(ws.id) });
+    qc.invalidateQueries({ queryKey: dataKey(ws.id) });
+  };
   const purge = useMutation({
-    mutationFn: (v: { kind: Kind; id: string }) => unwrap(purgeItem(v)),
-    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+    mutationFn: (v: { kind: Kind; id: string }) => unwrap(api.purgeItem(v)),
+    onSuccess: refresh,
     onError: (e) => toast.error(e instanceof Error ? e.message : "Silinemedi."),
   });
   const empty = useMutation({
-    mutationFn: () => unwrap(emptyTrash()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+    mutationFn: () => unwrap(api.emptyTrash()),
+    onSuccess: refresh,
     onError: (e) => toast.error(e instanceof Error ? e.message : "Boşaltılamadı."),
   });
 
-  if (isLoading || !data) {
-    return (
-      <div className="mx-auto max-w-3xl space-y-3 p-4">
-        <Skeleton className="h-24 w-full" />
-      </div>
-    );
-  }
-
-  const groups: { kind: Kind; items: { id: string; title: string; deletedAt: Date | null }[] }[] = [
-    { kind: "list", items: data.lists },
-    { kind: "task", items: data.tasks },
-    { kind: "note", items: data.notes },
-  ];
-  const total = data.lists.length + data.tasks.length + data.notes.length;
+  if (isLoading || !data) return <Skeleton className="h-40 w-full max-w-3xl" />;
+  const total = GROUPS.reduce((n, [, k]) => n + data[k].length, 0);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-3 sm:p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Çöp Kutusu</h1>
-        {total > 0 && canPurge && (
-          <ConfirmButton label="Tümünü kalıcı sil" onConfirm={() => empty.mutate()} />
-        )}
+    <div className="max-w-[760px]">
+      <div className="mb-3.5 flex items-center gap-3">
+        <h1 className="flex-1 text-xl font-semibold tracking-tight">Çöp</h1>
+        {total > 0 && canPurge && <ConfirmButton label="Çöpü boşalt" onConfirm={() => empty.mutate()} />}
       </div>
 
-      {total === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Çöp kutusu boş.</p>}
+      {total === 0 && (
+        <div className="px-2 py-7 text-center text-muted-foreground">
+          <strong className="mb-1 block text-base text-foreground">Çöp boş</strong>
+          Sildiğin görev, not, proje ve dosyalar burada durur, istersen geri alırsın.
+        </div>
+      )}
 
-      {groups.map(({ kind, items }) => {
-        if (items.length === 0) return null;
-        const Icon = META[kind].icon;
+      {GROUPS.map(([title, key, kind]) => {
+        const items = data[key];
+        if (!items.length) return null;
         return (
-          <section key={kind}>
-            <h2 className="mb-1 text-sm font-semibold text-muted-foreground">{META[kind].label}</h2>
-            <ul className="divide-y rounded-lg border bg-card">
-              {items.map((it) => (
-                <li key={it.id} className="flex items-center gap-3 px-3 py-2.5">
-                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate text-sm">{it.title || "Başlıksız"}</span>
-                  <span className="hidden text-xs text-muted-foreground sm:inline">
-                    {it.deletedAt &&
-                      new Date(it.deletedAt).toLocaleDateString("tr-TR", { day: "numeric", month: "short" })}
-                  </span>
+          <section key={key} className="mb-[22px]">
+            <h2 className="mb-1.5 flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              {title}
+              <span>{items.length}</span>
+            </h2>
+            <div className="rounded-lg border bg-card">
+              {items.map((x) => (
+                <div key={x.id} className="flex items-center gap-2.5 border-t px-3 py-[9px] first:border-t-0">
+                  <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{x.title || "Başlıksız"}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{x.deletedAt ? fmtStamp(x.deletedAt) : ""}</span>
                   <Button
-                    size="sm"
                     variant="outline"
+                    size="sm"
                     onClick={() =>
-                      restore(kind, it.id).then(
-                        () => toast.success("Geri yüklendi"),
-                        (e) => toast.error(e instanceof Error ? e.message : "Geri yüklenemedi."),
-                      )
+                      a.restore(kind, x.id).then(refresh, (e) => toast.error(e instanceof Error ? e.message : "Geri alınamadı."))
                     }
                   >
-                    <RotateCcw className="mr-1 h-3.5 w-3.5" /> Geri yükle
+                    Geri al
                   </Button>
-                  {canPurge && (
-                    <ConfirmButton label="Kalıcı sil" onConfirm={() => purge.mutate({ kind, id: it.id })} />
-                  )}
-                </li>
+                  {canPurge && <ConfirmButton label="Kalıcı sil" onConfirm={() => purge.mutate({ kind, id: x.id })} />}
+                </div>
               ))}
-            </ul>
+            </div>
           </section>
         );
       })}

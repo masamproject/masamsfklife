@@ -21,7 +21,7 @@ export function AcceptInvite({ invitationId, email }: { invitationId: string; em
     }
     const orgId = res.data?.invitation?.organizationId;
     if (orgId) await authClient.organization.setActive({ organizationId: orgId });
-    router.replace("/pano");
+    router.replace("/gorevler");
     router.refresh();
   }
 

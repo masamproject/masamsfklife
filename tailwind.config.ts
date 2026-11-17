@@ -9,6 +9,9 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Consolas', 'monospace']
+  		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
@@ -37,6 +40,10 @@ const config: Config = {
   				foreground: 'hsl(var(--accent-foreground))'
   			},
   			destructive: 'hsl(var(--destructive))',
+  			'primary-soft': 'hsl(var(--primary-soft))',
+  			'danger-soft': 'hsl(var(--danger-soft))',
+  			warn: 'hsl(var(--warn))',
+  			'warn-soft': 'hsl(var(--warn-soft))',
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',

@@ -1,186 +1,326 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSyncExternalStore } from "react";
 import { generateKeyBetween } from "fractional-indexing";
 import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import type { List, Task } from "@/db/schema";
-import {
-  createList,
-  createTask,
-  deleteList,
-  deleteTask,
-  getWorkspaceData,
-  moveList,
-  moveTask,
-  renameList,
-  updateTask,
-} from "@/lib/actions/board";
-import { restoreItem } from "@/lib/actions/trash";
+import type {
+  FileRow,
+  List,
+  Note,
+  NoteAction,
+  Notebook,
+  Project,
+  Section,
+  Task,
+} from "@/db/schema";
+import * as api from "@/lib/actions/data";
 import { unwrap } from "@/lib/actions/unwrap";
 
 export type Member = { id: string; name: string; email: string; image: string | null };
-export type Data = { lists: List[]; tasks: Task[]; members: Member[] };
+export type Data = {
+  lists: List[];
+  tasks: Task[];
+  notes: Note[];
+  projects: Project[];
+  notebooks: Notebook[];
+  sections: Section[];
+  files: FileRow[];
+  members: Member[];
+};
+export type Kind = "task" | "note" | "project" | "file" | "list" | "notebook" | "section";
+
+const COLL: Record<Kind, keyof Omit<Data, "members">> = {
+  task: "tasks",
+  note: "notes",
+  project: "projects",
+  file: "files",
+  list: "lists",
+  notebook: "notebooks",
+  section: "sections",
+};
+const LABEL: Record<Kind, string> = {
+  task: "Görev",
+  note: "Not",
+  project: "Proje",
+  file: "Dosya",
+  list: "Liste",
+  notebook: "Defter",
+  section: "Bölüm",
+};
 
 export const dataKey = (wsId: string) => ["data", wsId] as const;
+export const trashKey = (wsId: string) => ["trash", wsId] as const;
+
+const noop = () => () => {};
 
 export function useWorkspaceData() {
   const ws = useWorkspace();
-  return useQuery({
+  const q = useQuery({
     queryKey: dataKey(ws.id),
-    queryFn: () => unwrap(getWorkspaceData()) as Promise<Data>,
+    queryFn: () => unwrap(api.getWorkspaceData()) as Promise<Data>,
   });
+  // Sunucu HTML'i (iskelet) ile ilk istemci render'ı aynı olsun: hydration bitene kadar "yükleniyor"
+  const hydrated = useSyncExternalStore(noop, () => true, () => false);
+  return hydrated ? q : { ...q, data: undefined, isLoading: true as const };
 }
 
-/** 5 saniyelik "Geri Al" bildirimi */
-export function toastUndo(message: string, onUndo: () => void) {
-  toast(message, { duration: 5000, action: { label: "Geri Al", onClick: onUndo } });
+/** Kaydediliyor / Kaydedildi göstergesi için bekleyen yazma sayısı. */
+export function usePendingWrites() {
+  const ws = useWorkspace();
+  return useIsMutating({ mutationKey: ["data-mut", ws.id] });
 }
 
 const byPos = <T extends { position: string }>(a: T, b: T) =>
   a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
+
+type Patch<T> = Partial<Omit<T, "id" | "workspaceId">>;
+const merge = <T extends { id: string }>(arr: T[], id: string, p: object): T[] =>
+  arr.map((x) => (x.id === id ? ({ ...x, ...p } as T) : x));
 
 export function useDataActions() {
   const ws = useWorkspace();
   const qc = useQueryClient();
   const key = dataKey(ws.id);
 
-  /** Optimistic mutation: önbelleği hemen günceller, hatada geri alır. */
-  function useOpt<V>(
-    fn: (v: V) => Promise<unknown>,
-    apply: (d: Data, v: V) => Data,
-    onSuccess?: (v: V) => void,
-  ) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useMutation({
-      mutationKey: ["data-mut", ws.id],
-      mutationFn: fn,
-      onMutate: async (v: V) => {
-        await qc.cancelQueries({ queryKey: key });
-        const prev = qc.getQueryData<Data>(key);
-        if (prev) qc.setQueryData<Data>(key, apply(prev, v));
-        return { prev };
-      },
-      onError: (e, _v, ctx) => {
-        if (ctx?.prev) qc.setQueryData(key, ctx.prev);
-        toast.error(e instanceof Error ? e.message : "İşlem başarısız.");
-      },
-      onSuccess: (_d, v) => onSuccess?.(v),
-      onSettled: () => {
-        // başka mutation sürüyorsa yenileme yapma (yarış → titreme)
-        if (qc.isMutating({ mutationKey: ["data-mut", ws.id] }) <= 1) {
-          qc.invalidateQueries({ queryKey: key });
-        }
-      },
-    });
-  }
+  type Op = { run: () => Promise<unknown>; apply: (d: Data) => Data; after?: () => void };
+  const m = useMutation({
+    mutationKey: ["data-mut", ws.id],
+    mutationFn: (op: Op) => op.run(),
+    onMutate: async (op) => {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<Data>(key);
+      if (prev) qc.setQueryData<Data>(key, op.apply(prev));
+      return { prev };
+    },
+    onError: (e, _op, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+      toast.error(e instanceof Error ? e.message : "İşlem başarısız.");
+    },
+    onSuccess: (_d, op) => op.after?.(),
+    onSettled: () => {
+      // başka yazma sürüyorsa yenileme yapma (yarış → titreme)
+      if (qc.isMutating({ mutationKey: ["data-mut", ws.id] }) <= 1) {
+        qc.invalidateQueries({ queryKey: key });
+      }
+    },
+  });
+  const opt = (run: () => Promise<unknown>, apply: (d: Data) => Data, after?: () => void) =>
+    m.mutate({ run, apply, after });
 
-  const restore = (kind: "list" | "task" | "note", id: string) =>
-    unwrap(restoreItem({ kind, id })).then(() => {
-      qc.invalidateQueries({ queryKey: key });
-      qc.invalidateQueries({ queryKey: ["trash", ws.id] });
-      qc.invalidateQueries({ queryKey: ["notes", ws.id] });
-    });
+  const refreshAll = () => {
+    qc.invalidateQueries({ queryKey: key });
+    qc.invalidateQueries({ queryKey: trashKey(ws.id) });
+  };
 
-  const addList = useOpt<{ id: string; title: string; position: string }>(
-    (v) => unwrap(createList(v)),
-    (d, v) => ({
-      ...d,
-      lists: [
-        ...d.lists,
-        { id: v.id, workspaceId: ws.id, title: v.title, position: v.position, createdAt: new Date(), deletedAt: null },
-      ],
-    }),
-  );
-  const renameListM = useOpt<{ id: string; title: string }>(
-    (v) => unwrap(renameList(v)),
-    (d, v) => ({ ...d, lists: d.lists.map((l) => (l.id === v.id ? { ...l, title: v.title } : l)) }),
-  );
-  const moveListM = useOpt<{ id: string; position: string }>(
-    (v) => unwrap(moveList(v)),
-    (d, v) => ({
-      ...d,
-      lists: d.lists.map((l) => (l.id === v.id ? { ...l, position: v.position } : l)).sort(byPos),
-    }),
-  );
-  const removeListM = useOpt<{ id: string }>(
-    (v) => unwrap(deleteList(v)),
-    (d, v) => ({ ...d, lists: d.lists.filter((l) => l.id !== v.id) }),
-    (v) => toastUndo("Liste silindi", () => restore("list", v.id)),
-  );
+  /* ------------------------- yardımcılar ------------------------- */
+  const lastList = (d: Data) => d.lists.at(-1);
+  const firstList = (d: Data) => d.lists[0];
 
-  const addTaskM = useOpt<{
-    id: string;
-    title: string;
-    listId: string | null;
-    noteId?: string | null;
-    dueDate?: Date | null;
-    position: string;
-  }>(
-    (v) => unwrap(createTask(v)),
-    (d, v) => ({
-      ...d,
-      tasks: [
-        ...d.tasks,
-        {
-          id: v.id,
-          workspaceId: ws.id,
-          creatorId: ws.user.id,
-          assigneeId: null,
-          listId: v.listId,
-          noteId: v.noteId ?? null,
-          title: v.title,
-          description: "",
-          dueDate: v.dueDate ?? null,
-          priority: "medium" as const,
-          tags: [],
-          isCompleted: false,
-          position: v.position,
-          createdAt: new Date(),
-          deletedAt: null,
-        },
-      ].sort(byPos),
-    }),
-  );
-
-  type Patch = Partial<
-    Pick<Task, "title" | "description" | "dueDate" | "priority" | "tags" | "assigneeId" | "isCompleted">
-  >;
-  const patchTaskM = useOpt<{ id: string } & Patch>(
-    (v) => unwrap(updateTask(v)),
-    (d, { id, ...p }) => ({ ...d, tasks: d.tasks.map((t) => (t.id === id ? { ...t, ...p } : t)) }),
-  );
-  const moveTaskM = useOpt<{ id: string; listId: string; position: string }>(
-    (v) => unwrap(moveTask(v)),
-    (d, v) => ({
-      ...d,
-      tasks: d.tasks
-        .map((t) => (t.id === v.id ? { ...t, listId: v.listId, position: v.position } : t))
-        .sort(byPos),
-    }),
-  );
-  const removeTaskM = useOpt<{ id: string }>(
-    (v) => unwrap(deleteTask(v)),
-    (d, v) => ({ ...d, tasks: d.tasks.filter((t) => t.id !== v.id) }),
-    (v) => toastUndo("Görev silindi", () => restore("task", v.id)),
-  );
-
-  /** Bir listenin sonuna eklemek için konum üretir. */
-  function endPosition(listId: string | null, tasks: Task[]) {
-    const last = tasks.filter((t) => t.listId === listId).sort(byPos).at(-1);
+  /** Bir listenin sonuna eklemek için konum. */
+  const endPosition = (d: Data, listId: string, excludeId?: string) => {
+    const last = d.tasks
+      .filter((t) => t.listId === listId && t.id !== excludeId)
+      .sort(byPos)
+      .at(-1);
     return generateKeyBetween(last?.position ?? null, null);
-  }
+  };
+
+  /* --------------------------- listeler --------------------------- */
+  const addList = (v: { id: string; title: string; position: string }) =>
+    opt(
+      () => unwrap(api.createList(v)),
+      (d) => ({
+        ...d,
+        lists: [...d.lists, { id: v.id, workspaceId: ws.id, title: v.title, position: v.position, createdAt: new Date(), deletedAt: null }].sort(byPos),
+      }),
+    );
+  const renameList = (id: string, title: string) =>
+    opt(() => unwrap(api.renameList({ id, title })), (d) => ({ ...d, lists: merge(d.lists, id, { title }) }));
+
+  /* --------------------------- görevler --------------------------- */
+  const addTask = (v: { id: string; title: string; listId: string; projectId?: string | null; noteId?: string | null; position: string }) =>
+    opt(
+      () => unwrap(api.createTask(v)),
+      (d) => ({
+        ...d,
+        tasks: [
+          ...d.tasks,
+          {
+            id: v.id,
+            workspaceId: ws.id,
+            creatorId: ws.user.id,
+            assigneeId: null,
+            listId: v.listId,
+            noteId: v.noteId ?? null,
+            projectId: v.projectId ?? null,
+            title: v.title,
+            description: "",
+            dueDate: null,
+            priority: null,
+            tags: [],
+            isCompleted: v.listId === lastList(d)?.id,
+            position: v.position,
+            createdAt: new Date(),
+            archivedAt: null,
+            deletedAt: null,
+          } satisfies Task,
+        ].sort(byPos),
+      }),
+    );
+
+  const patchTask = (
+    id: string,
+    p: Partial<Pick<Task, "title" | "description" | "dueDate" | "priority" | "tags" | "assigneeId" | "projectId">>,
+  ) => opt(() => unwrap(api.updateTask({ id, ...p })), (d) => ({ ...d, tasks: merge(d.tasks, id, p) }));
+
+  const moveTask = (id: string, listId: string, position: string) =>
+    opt(
+      () => unwrap(api.moveTask({ id, listId, position })),
+      (d) => ({
+        ...d,
+        tasks: merge(d.tasks, id, { listId, position, isCompleted: listId === lastList(d)?.id }).sort(byPos),
+      }),
+    );
+
+  /** Tamamla = son listeye; geri al = ilk listeye (zaten son listede değilse yerinde kalır). */
+  const setDone = (d: Data, t: Task, done: boolean) => {
+    const target = done ? lastList(d) : t.listId === lastList(d)?.id ? firstList(d) : d.lists.find((l) => l.id === t.listId);
+    if (!target) return;
+    moveTask(t.id, target.id, endPosition(d, target.id, t.id));
+  };
+
+  /* ---------------------------- notlar ---------------------------- */
+  const addNote = (n: Note) =>
+    opt(
+      () =>
+        unwrap(
+          api.createNote({
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            content: n.content,
+            meetingDate: n.meetingDate,
+            projectId: n.projectId,
+            sectionId: n.sectionId,
+          }),
+        ),
+      (d) => ({ ...d, notes: [n, ...d.notes] }),
+    );
+
+  const patchNote = (id: string, p: Patch<Note> & { actions?: NoteAction[] }) =>
+    opt(
+      () =>
+        unwrap(
+          api.updateNote({
+            id,
+            type: p.type,
+            title: p.title,
+            content: p.content,
+            meetingDate: p.meetingDate,
+            participants: p.participants,
+            tags: p.tags,
+            actions: p.actions,
+            projectId: p.projectId,
+            sectionId: p.sectionId,
+          }),
+        ),
+      (d) => ({
+        ...d,
+        notes: merge(d.notes, id, { ...p, updatedAt: new Date() }).sort(
+          (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+        ),
+      }),
+    );
+
+  /* ---------------- projeler / defterler / bölümler ---------------- */
+  const addProject = (id: string, name: string) =>
+    opt(
+      () => unwrap(api.createProject({ id, name })),
+      (d) => ({
+        ...d,
+        projects: [...d.projects, { id, workspaceId: ws.id, name, description: "", createdAt: new Date(), archivedAt: null, deletedAt: null }].sort(
+          (a, b) => a.name.localeCompare(b.name, "tr"),
+        ),
+      }),
+    );
+  const patchProject = (id: string, p: { name?: string; description?: string }) =>
+    opt(() => unwrap(api.updateProject({ id, ...p })), (d) => ({ ...d, projects: merge(d.projects, id, p) }));
+
+  const addNotebook = (v: { id: string; name: string; color: string; position: string }) =>
+    opt(
+      () => unwrap(api.createNotebook(v)),
+      (d) => ({ ...d, notebooks: [...d.notebooks, { ...v, workspaceId: ws.id, createdAt: new Date(), deletedAt: null }].sort(byPos) }),
+    );
+  const patchNotebook = (id: string, p: { name?: string; color?: string }) =>
+    opt(() => unwrap(api.updateNotebook({ id, ...p })), (d) => ({ ...d, notebooks: merge(d.notebooks, id, p) }));
+  const addSection = (v: { id: string; notebookId: string; name: string; color: string; position: string }) =>
+    opt(
+      () => unwrap(api.createSection(v)),
+      (d) => ({ ...d, sections: [...d.sections, { ...v, workspaceId: ws.id, createdAt: new Date(), deletedAt: null }].sort(byPos) }),
+    );
+  const patchSection = (id: string, p: { name?: string; color?: string }) =>
+    opt(() => unwrap(api.updateSection({ id, ...p })), (d) => ({ ...d, sections: merge(d.sections, id, p) }));
+
+  /* ---------------------------- dosyalar ---------------------------- */
+  const patchFile = (id: string, projectId: string | null) =>
+    opt(() => unwrap(api.updateFile({ id, projectId })), (d) => ({ ...d, files: merge(d.files, id, { projectId }) }));
+
+  const addFileLocal = (f: FileRow) =>
+    qc.setQueryData<Data>(key, (d) => (d ? { ...d, files: [{ ...f, createdAt: new Date(f.createdAt) }, ...d.files] } : d));
+
+  /* --------------------- arşiv / çöp / geri al --------------------- */
+  const restore = async (kind: Kind, id: string) => {
+    await unwrap(api.setState({ kind, id, state: "restore" }));
+    refreshAll();
+  };
+  const unarchive = (kind: Kind, id: string) =>
+    opt(
+      () => unwrap(api.setState({ kind, id, state: "unarchive" })),
+      (d) => ({ ...d, [COLL[kind]]: merge(d[COLL[kind]] as { id: string }[], id, { archivedAt: null }) }),
+    );
+
+  const archive = (kind: Kind, id: string) =>
+    opt(
+      () => unwrap(api.setState({ kind, id, state: "archive" })),
+      (d) => ({ ...d, [COLL[kind]]: merge(d[COLL[kind]] as { id: string }[], id, { archivedAt: new Date() }) }),
+      () => toast(`${LABEL[kind]} arşivlendi`, { duration: 5000, action: { label: "Geri al", onClick: () => unarchive(kind, id) } }),
+    );
+
+  const trash = (kind: Kind, id: string) =>
+    opt(
+      () => unwrap(api.setState({ kind, id, state: "trash" })),
+      (d) => ({ ...d, [COLL[kind]]: (d[COLL[kind]] as { id: string }[]).filter((x) => x.id !== id) }),
+      () =>
+        toast(`${LABEL[kind]} çöpe taşındı`, {
+          duration: 5000,
+          action: { label: "Geri al", onClick: () => restore(kind, id).catch((e) => toast.error(e instanceof Error ? e.message : "Geri alınamadı.")) },
+        }),
+    );
 
   return {
-    addList: addList.mutate,
-    renameList: renameListM.mutate,
-    moveList: moveListM.mutate,
-    removeList: removeListM.mutate,
-    addTask: addTaskM.mutate,
-    patchTask: patchTaskM.mutate,
-    moveTask: moveTaskM.mutate,
-    removeTask: removeTaskM.mutate,
-    restore,
     endPosition,
+    addList,
+    renameList,
+    addTask,
+    patchTask,
+    moveTask,
+    setDone,
+    addNote,
+    patchNote,
+    addProject,
+    patchProject,
+    addNotebook,
+    patchNotebook,
+    addSection,
+    patchSection,
+    patchFile,
+    addFileLocal,
+    archive,
+    unarchive,
+    trash,
+    restore,
+    refreshAll,
   };
 }

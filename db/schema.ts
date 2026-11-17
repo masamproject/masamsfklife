@@ -1,13 +1,17 @@
 import { relations } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+
+export type NoteAction = { id: string; text: string; taskId: string };
 
 /* ------------------------------------------------------------------ */
 /* Enums                                                               */
@@ -143,6 +147,82 @@ export const invitations = pgTable(
 /* ------------------------------------------------------------------ */
 /* İçerik tabloları (hepsi workspaceId ile izole + soft delete)        */
 /* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* Projeler, defterler, bölümler, dosyalar                             */
+/* ------------------------------------------------------------------ */
+export const projects = pgTable(
+  "projects",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    archivedAt: timestamp("archived_at"),
+    deletedAt: timestamp("deleted_at"),
+  },
+  (t) => [index("projects_ws_idx").on(t.workspaceId)],
+);
+
+export const notebooks = pgTable(
+  "notebooks",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    color: text("color").notNull().default("#868e96"),
+    position: text("position").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at"),
+  },
+  (t) => [index("notebooks_ws_idx").on(t.workspaceId)],
+);
+
+export const sections = pgTable(
+  "sections",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    notebookId: text("notebook_id")
+      .notNull()
+      .references(() => notebooks.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    color: text("color").notNull().default("#868e96"),
+    position: text("position").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at"),
+  },
+  (t) => [index("sections_ws_idx").on(t.workspaceId, t.notebookId)],
+);
+
+export const files = pgTable(
+  "files",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
+    uploaderId: text("uploader_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    size: bigint("size", { mode: "number" }).notNull().default(0),
+    contentType: text("content_type").notNull(),
+    blobKey: text("blob_key").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    archivedAt: timestamp("archived_at"),
+    deletedAt: timestamp("deleted_at"),
+  },
+  (t) => [index("files_ws_idx").on(t.workspaceId, t.projectId)],
+);
+
 export const lists = pgTable(
   "lists",
   {
@@ -173,11 +253,20 @@ export const notes = pgTable(
     content: text("content").notNull().default(""), // markdown
     meetingDate: timestamp("meeting_date"),
     participants: text("participants").array().notNull().default([]),
+    tags: text("tags").array().notNull().default([]),
+    // Toplantı aksiyon maddeleri; taskId doluysa göreve çevrilmiştir
+    actions: jsonb("actions").$type<NoteAction[]>().notNull().default([]),
+    sectionId: text("section_id").references(() => sections.id, { onDelete: "set null" }),
+    projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    archivedAt: timestamp("archived_at"),
     deletedAt: timestamp("deleted_at"),
   },
-  (t) => [index("notes_ws_idx").on(t.workspaceId, t.updatedAt)],
+  (t) => [
+    index("notes_ws_idx").on(t.workspaceId, t.updatedAt),
+    index("notes_project_idx").on(t.projectId),
+  ],
 );
 
 export const tasks = pgTable(
@@ -198,14 +287,17 @@ export const tasks = pgTable(
     title: text("title").notNull(),
     description: text("description").notNull().default(""),
     dueDate: timestamp("due_date"),
-    priority: priorityEnum("priority").notNull().default("medium"),
+    priority: priorityEnum("priority"), // null = öncelik yok
     tags: text("tags").array().notNull().default([]),
     isCompleted: boolean("is_completed").notNull().default(false),
+    projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
     position: text("position").notNull(), // fractional index
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    archivedAt: timestamp("archived_at"),
     deletedAt: timestamp("deleted_at"),
   },
   (t) => [
+    index("tasks_project_idx").on(t.projectId),
     index("tasks_ws_list_pos_idx").on(t.workspaceId, t.listId, t.position),
     index("tasks_ws_due_idx").on(t.workspaceId, t.dueDate),
     index("tasks_assignee_idx").on(t.assigneeId),
@@ -256,3 +348,7 @@ export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
 export type List = typeof lists.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type Note = typeof notes.$inferSelect;
+export type Project = typeof projects.$inferSelect;
+export type Notebook = typeof notebooks.$inferSelect;
+export type Section = typeof sections.$inferSelect;
+export type FileRow = typeof files.$inferSelect;

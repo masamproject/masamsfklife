@@ -1,209 +1,265 @@
 "use client";
 
-import { Check, Link2, Loader2, Trash2, X } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { Note } from "@/db/schema";
-import { parseActionItems } from "@/lib/actions-items";
-import { useDataActions, useWorkspaceData } from "@/lib/hooks/use-data";
-import { useNoteActions } from "@/lib/hooks/use-notes";
-import { fromDateInput, toDateInput } from "@/lib/ui";
+import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import type { Note, NoteAction } from "@/db/schema";
+import { useDataActions, type Data } from "@/lib/hooks/use-data";
+import { useSaver } from "@/lib/hooks/use-saver";
+import { fmtStamp, fromDateInput, parseTags, toDateInput } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
-type Draft = { title: string; content: string; meetingDate: Date | null; participants: string[] };
-const DEBOUNCE_MS = 500;
+export const MEETING_TEMPLATE = "Gündem\n- \n\nNotlar\n\n\nKararlar\n- \n";
 
-export function NoteEditor({ note, onDeleted }: { note: Note; onDeleted: () => void }) {
-  const { save, remove } = useNoteActions();
-  const data = useWorkspaceData().data;
-  const a = useDataActions();
+type Patch = Pick<Note, "type" | "title" | "content" | "meetingDate" | "participants" | "tags" | "sectionId" | "projectId"> & {
+  actions: NoteAction[];
+};
 
-  const [draft, setDraft] = useState<Draft>({
-    title: note.title,
-    content: note.content,
-    meetingDate: note.meetingDate,
-    participants: note.participants,
-  });
-  const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
-  const [person, setPerson] = useState("");
-
-  // Auto-save (500ms debounce); sayfadan/nottan çıkarken bekleyen yazıyı yut
-  const dirty = useRef(false);
-  const latest = useRef(draft);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
-  latest.current = draft;
-
-  const flush = async () => {
-    if (!dirty.current) return;
-    dirty.current = false;
-    setStatus("saving");
-    try {
-      await save(note.id, latest.current);
-      setStatus("saved");
-    } catch (e) {
-      dirty.current = true;
-      setStatus("error");
-      toast.error(e instanceof Error ? e.message : "Kaydedilemedi.");
-    }
-  };
-
-  const edit = (patch: Partial<Draft>) => {
-    setDraft((d) => ({ ...d, ...patch }));
-    dirty.current = true;
-    setStatus("saving");
-    clearTimeout(timer.current);
-    timer.current = setTimeout(flush, DEBOUNCE_MS);
-  };
-
-  useEffect(
-    () => () => {
-      clearTimeout(timer.current);
-      void flush();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+function Field({ label, htmlFor, grow, children }: { label: string; htmlFor: string; grow?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-1", grow && "flex-[1_1_200px]")}>
+      <Label htmlFor={htmlFor} className="font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </Label>
+      {children}
+    </div>
   );
+}
 
-  // Aksiyon maddeleri ↔ bu nota bağlı görevler
-  const items = useMemo(() => parseActionItems(draft.content), [draft.content]);
-  const linked = (data?.tasks ?? []).filter((t) => t.noteId === note.id);
-  const firstList = data?.lists[0];
+export function NoteEditor({ note, data, onBack, autoFocusTitle }: { note: Note; data: Data; onBack: () => void; autoFocusTitle: boolean }) {
+  const a = useDataActions();
+  const router = useRouter();
+  const saver = useSaver<Patch>((p) => a.patchNote(note.id, p));
 
-  const toTask = (title: string) => {
-    if (!data) return;
-    a.addTask({
-      id: crypto.randomUUID(),
-      title,
-      listId: firstList?.id ?? null,
-      noteId: note.id,
-      position: a.endPosition(firstList?.id ?? null, data.tasks),
-    });
-    toast.success("Göreve çevrildi");
+  // Yerel taslak: yazarken önbellek yenilemesi imleci bozmasın diye not başına bir kez başlatılır
+  const [title, setTitle] = useState(note.title);
+  const [content, setContent] = useState(note.content);
+  const [kind, setKind] = useState(note.type);
+  const [attendees, setAttendees] = useState(note.participants.join(", "));
+  const [tags, setTags] = useState(note.tags.join(", "));
+  const [actions, setActions] = useState<NoteAction[]>(note.actions);
+  const [newAction, setNewAction] = useState("");
+  const body = useRef<HTMLTextAreaElement>(null);
+  const isMeeting = kind === "meeting";
+
+  const fit = () => {
+    const t = body.current;
+    if (!t) return;
+    t.style.height = "auto";
+    t.style.height = `${Math.max(t.scrollHeight, 260)}px`;
   };
+  useEffect(fit, [content, kind]);
+
+  const saveActions = (next: NoteAction[]) => {
+    setActions(next);
+    saver.set({ actions: next }, 0);
+  };
+
+  const changeKind = (k: Note["type"]) => {
+    if (k === kind) return;
+    setKind(k);
+    const p: Partial<Patch> = { type: k };
+    if (k === "meeting" && !content.trim()) {
+      setContent(MEETING_TEMPLATE);
+      p.content = MEETING_TEMPLATE;
+    }
+    saver.set(p, 0);
+  };
+
+  const toTask = (act: NoteAction) => {
+    const first = data.lists[0];
+    if (!act.text.trim() || !first) return;
+    const taskId = crypto.randomUUID();
+    a.addTask({ id: taskId, title: act.text.trim(), listId: first.id, noteId: note.id, projectId: note.projectId, position: a.endPosition(data, first.id) });
+    saveActions(actions.map((x) => (x.id === act.id ? { ...x, taskId } : x)));
+    toast.success(`Göreve çevrildi: Görevler > ${first.title}`);
+  };
+
+  const projects = data.projects.filter((p) => !p.archivedAt);
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col gap-3 p-3 sm:p-6">
-      <div className="flex items-center gap-2">
-        <input
-          value={draft.title}
-          onChange={(e) => edit({ title: e.target.value })}
-          placeholder={note.type === "meeting" ? "Toplantı başlığı" : "Başlık"}
-          className="min-w-0 flex-1 bg-transparent text-2xl font-bold outline-none placeholder:text-muted-foreground/60"
-        />
-        <span className="flex items-center gap-1 text-xs text-muted-foreground" aria-live="polite">
-          {status === "saving" && (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" /> Kaydediliyor
-            </>
-          )}
-          {status === "saved" && (
-            <>
-              <Check className="h-3 w-3" /> Kaydedildi
-            </>
-          )}
-          {status === "error" && <span className="text-destructive">Kaydedilemedi</span>}
-        </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Notu sil"
-          onClick={async () => {
-            clearTimeout(timer.current);
-            dirty.current = false;
-            remove(note.id);
-            onDeleted();
-          }}
-        >
-          <Trash2 className="h-4 w-4" />
+    <div className="min-w-0 rounded-[10px] border bg-card p-3.5 min-[1101px]:px-5 min-[1101px]:py-[18px]">
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" className="min-[1101px]:hidden" onClick={() => (saver.flush(), onBack())}>
+          ← Notlar
         </Button>
+        <div role="group" aria-label="Tür" className="inline-flex overflow-hidden rounded-md border bg-card">
+          {(["free", "meeting"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              aria-pressed={kind === k}
+              onClick={() => changeKind(k)}
+              className={cn("px-3 py-1 text-[13px] text-muted-foreground", kind === k && "bg-primary-soft font-medium text-primary")}
+            >
+              {k === "free" ? "Not" : "Toplantı"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {note.type === "meeting" && (
-        <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[auto_1fr]">
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Tarih</span>
+      <input
+        autoFocus={autoFocusTitle}
+        value={title}
+        aria-label="Başlık"
+        placeholder={isMeeting ? "Toplantı başlığı" : "Başlık"}
+        onChange={(e) => {
+          setTitle(e.target.value);
+          saver.set({ title: e.target.value });
+        }}
+        className="w-full bg-transparent py-1 text-2xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/60"
+      />
+
+      {isMeeting && (
+        <div className="my-2 mb-3 flex flex-wrap gap-2.5">
+          <Field label="Tarih" htmlFor="n-date">
+            <Input id="n-date" type="date" value={toDateInput(note.meetingDate)} onChange={(e) => saver.set({ meetingDate: fromDateInput(e.target.value) }, 0)} />
+          </Field>
+          <Field label="Katılımcılar" htmlFor="n-att" grow>
             <Input
-              type="date"
-              className="w-auto"
-              value={toDateInput(draft.meetingDate)}
-              onChange={(e) => edit({ meetingDate: fromDateInput(e.target.value) })}
-            />
-          </label>
-          <div className="flex flex-wrap items-center gap-1.5 text-sm">
-            <span className="text-muted-foreground">Katılımcılar</span>
-            {draft.participants.map((p) => (
-              <span key={p} className="inline-flex items-center gap-1 rounded-full bg-muted py-0.5 pl-2 pr-1 text-xs">
-                {p}
-                <button
-                  aria-label={`${p} katılımcısını kaldır`}
-                  onClick={() => edit({ participants: draft.participants.filter((x) => x !== p) })}
-                  className="rounded-full p-0.5 hover:bg-background"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))}
-            <input
-              value={person}
-              onChange={(e) => setPerson(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && person.trim()) {
-                  e.preventDefault();
-                  if (!draft.participants.includes(person.trim())) {
-                    edit({ participants: [...draft.participants, person.trim()] });
-                  }
-                  setPerson("");
-                }
+              id="n-att"
+              value={attendees}
+              placeholder="Ayşe, Mehmet, …"
+              onChange={(e) => {
+                setAttendees(e.target.value);
+                saver.set({ participants: parseTags(e.target.value) });
               }}
-              placeholder="İsim ekle (Enter)"
-              className="min-w-28 flex-1 bg-transparent px-1 py-0.5 outline-none"
             />
-          </div>
+          </Field>
         </div>
       )}
 
       <textarea
-        value={draft.content}
-        onChange={(e) => edit({ content: e.target.value })}
-        placeholder="Yazmaya başla… (Markdown desteklenir)"
-        className="min-h-[16rem] w-full flex-1 resize-none rounded-lg border bg-background p-3 font-mono text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        ref={body}
+        id="n-body"
+        value={content}
+        aria-label="Not metni"
+        placeholder={isMeeting ? "Toplantı notlarını yaz…" : "Yazmaya başla…"}
+        onChange={(e) => {
+          setContent(e.target.value);
+          saver.set({ content: e.target.value });
+        }}
+        className="min-h-[260px] w-full resize-none overflow-hidden bg-transparent py-1.5 text-[15px] leading-[1.65] outline-none"
       />
 
-      {note.type === "meeting" && (
-        <section className="rounded-lg border p-3">
-          <h3 className="mb-2 text-sm font-semibold">Aksiyonlar</h3>
-          {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              &quot;## Aksiyonlar&quot; başlığının altına &quot;- madde&quot; satırları ekle.
-            </p>
-          ) : (
-            <ul className="space-y-1.5">
-              {items.map((text, i) => {
-                const task = linked.find((t) => t.title === text);
-                return (
-                  <li key={`${i}-${text}`} className="flex items-center gap-2 text-sm">
-                    <span className="min-w-0 flex-1 truncate">{text}</span>
-                    {task ? (
-                      <Link
-                        href={`/pano?card=${task.id}`}
-                        className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline dark:text-emerald-400"
-                      >
-                        <Link2 className="h-3 w-3" /> Görevde
-                      </Link>
-                    ) : (
-                      <Button size="sm" variant="outline" onClick={() => toTask(text)}>
-                        Göreve Çevir
-                      </Button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+      {isMeeting && (
+        <div>
+          <div className="mb-1.5 mt-4 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">Aksiyonlar</div>
+          {actions.map((act, i) => {
+            const task = act.taskId ? data.tasks.find((t) => t.id === act.taskId && !t.deletedAt) : undefined;
+            return (
+              <div key={act.id} className="flex items-center gap-2 py-1">
+                <input
+                  value={act.text}
+                  aria-label={`Aksiyon ${i + 1}`}
+                  onChange={(e) => saveActions(actions.map((x) => (x.id === act.id ? { ...x, text: e.target.value } : x)))}
+                  className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1.5"
+                />
+                {task ? (
+                  <Button variant="outline" size="sm" onClick={() => router.push(`/gorevler?card=${task.id}`)}>
+                    {task.isCompleted ? "Görev tamamlandı" : "Görevi aç"}
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => toTask(act)}>
+                    Göreve çevir
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Aksiyonu sil" onClick={() => saveActions(actions.filter((x) => x.id !== act.id))}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            );
+          })}
+          <form
+            className="flex gap-2 py-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const v = newAction.trim();
+              if (!v) return;
+              setNewAction("");
+              saveActions([...actions, { id: crypto.randomUUID(), text: v, taskId: "" }]);
+            }}
+          >
+            <input
+              value={newAction}
+              onChange={(e) => setNewAction(e.target.value)}
+              placeholder="Aksiyon ekle, Enter'a bas"
+              aria-label="Yeni aksiyon"
+              className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1.5"
+            />
+          </form>
+        </div>
       )}
+
+      <div className="mt-3.5 flex flex-wrap gap-2.5">
+        <Field label="Bölüm" htmlFor="n-sec">
+          <NativeSelect id="n-sec" value={note.sectionId && data.sections.some((s) => s.id === note.sectionId) ? note.sectionId : ""} onChange={(e) => saver.set({ sectionId: e.target.value || null }, 0)}>
+            <option value="">Bölümsüz</option>
+            {data.notebooks.map((nb) => (
+              <optgroup key={nb.id} label={nb.name}>
+                {data.sections
+                  .filter((s) => s.notebookId === nb.id)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+              </optgroup>
+            ))}
+          </NativeSelect>
+        </Field>
+        <Field label="Proje" htmlFor="n-proj">
+          <NativeSelect id="n-proj" value={note.projectId ?? ""} onChange={(e) => saver.set({ projectId: e.target.value || null }, 0)}>
+            <option value="">Proje yok</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        <Field label="Etiketler" htmlFor="n-tags" grow>
+          <Input
+            id="n-tags"
+            value={tags}
+            placeholder="proje, müşteri"
+            onChange={(e) => {
+              setTags(e.target.value);
+              saver.set({ tags: parseTags(e.target.value) });
+            }}
+          />
+        </Field>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-2.5 border-t pt-3">
+        <span className="font-mono text-xs text-muted-foreground">Oluşturuldu {fmtStamp(note.createdAt)}</span>
+        <span className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              saver.flush();
+              a.archive("note", note.id);
+            }}
+          >
+            Arşivle
+          </Button>
+          <Button
+            variant="outline"
+            className="text-destructive hover:text-destructive"
+            onClick={() => {
+              saver.flush();
+              a.trash("note", note.id);
+            }}
+          >
+            Çöpe taşı
+          </Button>
+        </span>
+      </div>
     </div>
   );
 }

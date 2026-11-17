@@ -13,7 +13,7 @@ export function AuthForm({ mode }: { mode: "giris" | "kayit" }) {
   const params = useSearchParams();
   const rawNext = params.get("next");
   // yalnızca site içi yollar (open redirect önlemi)
-  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/pano";
+  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/gorevler";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const isSignup = mode === "kayit";

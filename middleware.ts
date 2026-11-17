@@ -1,7 +1,7 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED = ["/pano", "/liste", "/notlar", "/cop-kutusu"];
+const PROTECTED = ["/gorevler", "/toplanti", "/projeler", "/dosyalar", "/arsiv", "/cop"];
 const AUTH_PAGES = ["/giris", "/kayit"];
 
 export function middleware(req: NextRequest) {
@@ -12,11 +12,20 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/giris", req.url));
   }
   if (AUTH_PAGES.includes(pathname) && hasCookie) {
-    return NextResponse.redirect(new URL("/pano", req.url));
+    return NextResponse.redirect(new URL("/gorevler", req.url));
   }
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/pano/:path*", "/liste/:path*", "/notlar/:path*", "/cop-kutusu/:path*", "/giris", "/kayit"],
+  matcher: [
+    "/gorevler/:path*",
+    "/toplanti/:path*",
+    "/projeler/:path*",
+    "/dosyalar/:path*",
+    "/arsiv/:path*",
+    "/cop/:path*",
+    "/giris",
+    "/kayit",
+  ],
 };

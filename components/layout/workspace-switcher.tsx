@@ -40,7 +40,7 @@ export function WorkspaceSwitcher() {
     if (id === ws.id) return;
     await authClient.organization.setActive({ organizationId: id });
     qc.clear();
-    router.replace("/pano");
+    router.replace("/gorevler");
     router.refresh();
   }
 
@@ -63,7 +63,7 @@ export function WorkspaceSwitcher() {
     setCreateOpen(false);
     setName("");
     qc.clear();
-    router.replace("/pano");
+    router.replace("/gorevler");
     router.refresh();
   }
 

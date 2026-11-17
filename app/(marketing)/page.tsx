@@ -1,8 +1,8 @@
 import {
   CalendarCheck,
   Check,
+  FolderKanban,
   KanbanSquare,
-  ListTodo,
   NotebookText,
   Users,
   Zap,
@@ -19,14 +19,14 @@ const FEATURES = [
     text: "Listeleri ve kartları sürükle, bırak. Konum anında değişir; sıralama tek satır yazar.",
   },
   {
-    icon: ListTodo,
-    title: "Akıllı yapılacaklar listesi",
-    text: "Gecikmiş, bugün, bu hafta… Görevlerin tarihe göre kendiliğinden gruplanır.",
+    icon: FolderKanban,
+    title: "Projeler ve dosyalar",
+    text: "Görev, not ve dosyalarını bir projeye bağla; tek ekranda hepsini gör.",
   },
   {
     icon: NotebookText,
     title: "Toplantı notları",
-    text: "Gündem, kararlar ve aksiyonlar hazır şablonda. Bir tıkla aksiyonu göreve çevir.",
+    text: "Defter ve bölümlerle düzenle. Gündem, kararlar ve aksiyonlar hazır şablonda; bir tıkla aksiyonu göreve çevir.",
   },
   {
     icon: Users,
@@ -40,17 +40,17 @@ const FEATURES = [
   },
   {
     icon: CalendarCheck,
-    title: "Güvenli çöp kutusu",
-    text: "Sildiklerin 5 saniye içinde geri alınabilir, çöp kutusunda saklanır.",
+    title: "Arşiv ve çöp kutusu",
+    text: "Bitenleri arşive kaldır. Sildiklerin 5 saniye içinde geri alınabilir, çöpte saklanır.",
   },
 ];
 
-const FREE = ["1 kişisel alan", "3 liste", "Sınırsız kart ve not", "Ekip daveti"];
+const FREE = ["1 kişisel alan", "6 liste", "Sınırsız kart ve not", "Ekip daveti"];
 const PRO = ["Sınırsız liste", "Free'deki her şey", "Öncelikli destek"];
 
 export default async function LandingPage() {
   const session = await getSession();
-  const cta = session ? { href: "/pano", label: "Panoya git" } : { href: "/kayit", label: "Ücretsiz başla" };
+  const cta = session ? { href: "/gorevler", label: "Panoya git" } : { href: "/kayit", label: "Ücretsiz başla" };
 
   return (
     <div className="min-h-screen bg-background">
