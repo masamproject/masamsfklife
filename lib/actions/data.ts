@@ -14,11 +14,11 @@ import {
   tasks,
   user,
   workspaceMembers,
-  workspaces,
 } from "@/db/schema";
 import { ActionError, workspaceAction } from "@/lib/actions/safe-action";
 import { deleteBlob } from "@/lib/blobs";
 import { PLAN_LIMITS } from "@/lib/plan";
+import { effectivePlan } from "@/lib/plan-server";
 
 const id = z.string().min(1).max(64);
 const position = z.string().min(1).max(64);
@@ -140,8 +140,7 @@ export const getTrash = workspaceAction(z.void(), async (_, ctx) => {
 /* Listeler (kanban sütunları)                                         */
 /* ------------------------------------------------------------------ */
 export const createList = workspaceAction(z.object({ id, title: name, position }), async (d, ctx) => {
-  const [ws] = await db.select({ plan: workspaces.plan }).from(workspaces).where(eq(workspaces.id, ctx.workspaceId)).limit(1);
-  if (ws?.plan !== "pro") {
+  if ((await effectivePlan(ctx.workspaceId)) !== "pro") {
     const live = await db.select({ id: lists.id }).from(lists).where(and(eq(lists.workspaceId, ctx.workspaceId), isNull(lists.deletedAt)));
     if (live.length >= PLAN_LIMITS.free.lists) {
       throw new ActionError(`Free planda en fazla ${PLAN_LIMITS.free.lists} liste olabilir. Pro'ya geç.`);
@@ -359,8 +358,7 @@ export const setState = workspaceAction(
     }
     // restore
     if (d.kind === "list") {
-      const [ws] = await db.select({ plan: workspaces.plan }).from(workspaces).where(eq(workspaces.id, ctx.workspaceId)).limit(1);
-      if (ws?.plan !== "pro") {
+      if ((await effectivePlan(ctx.workspaceId)) !== "pro") {
         const live = await db.select({ id: lists.id }).from(lists).where(and(eq(lists.workspaceId, ctx.workspaceId), isNull(lists.deletedAt)));
         if (live.length >= PLAN_LIMITS.free.lists) {
           throw new ActionError(`Free planda en fazla ${PLAN_LIMITS.free.lists} liste olabilir.`);
