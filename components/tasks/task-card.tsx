@@ -72,10 +72,13 @@ export function TaskCardView({
   showProject: boolean;
   onToggle?: () => void;
 }) {
+  const { data } = useWorkspaceData();
+  const assignee = task.assigneeId ? data?.members.find((m) => m.id === task.assigneeId)?.name : undefined;
   return (
     <div className="group/card flex items-start rounded-lg bg-card px-2.5 py-1.5 shadow-sm ring-1 ring-inset ring-black/5 hover:ring-primary dark:ring-white/10">
       <CheckCircle hoverOnly done={task.isCompleted} onToggle={onToggle ?? (() => {})} />
       <div className="min-w-0 flex-1">
+        {assignee && <div className="mb-0.5 truncate text-[11px] font-medium text-primary">{assignee}</div>}
         <div className={cn("[overflow-wrap:anywhere]", task.isCompleted && "text-muted-foreground line-through")}>
           {task.title || "Başlıksız görev"}
         </div>
