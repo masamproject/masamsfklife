@@ -23,7 +23,7 @@ export function Pill({
   return (
     <span
       className={cn(
-        "inline-block max-w-full truncate whitespace-nowrap rounded-full px-[7px] py-px font-mono text-[11px] font-medium",
+        "inline-block max-w-full truncate whitespace-nowrap rounded-full px-[7px] py-px font-mono text-[12px] font-medium",
         TONES[tone],
         className,
       )}

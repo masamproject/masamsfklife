@@ -122,7 +122,7 @@ export function NotesView() {
               >
                 <div className="font-medium [overflow-wrap:anywhere]">{n.title || (n.type === "meeting" ? "Başlıksız toplantı" : "Başlıksız not")}</div>
                 {snippet && <div className="line-clamp-1 text-[13px] text-muted-foreground">{snippet}</div>}
-                <div className="mt-0.5 flex flex-wrap gap-x-2 font-mono text-[11px] text-muted-foreground">
+                <div className="mt-0.5 flex flex-wrap gap-x-2 font-mono text-[12px] text-muted-foreground">
                   <span>{n.type === "meeting" ? `Toplantı · ${n.meetingDate ? fmtDay(n.meetingDate, true) : ""}` : `Not · ${fmtStamp(n.updatedAt)}`}</span>
                   {sec && <span>{sec.name}</span>}
                   {proj && <span>{proj.name}</span>}

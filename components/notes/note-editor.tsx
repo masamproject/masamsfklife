@@ -23,7 +23,7 @@ type Patch = Pick<Note, "type" | "title" | "content" | "meetingDate" | "particip
 function Field({ label, htmlFor, grow, children }: { label: string; htmlFor: string; grow?: boolean; children: React.ReactNode }) {
   return (
     <div className={cn("flex min-w-0 flex-col gap-1", grow && "flex-[1_1_200px]")}>
-      <Label htmlFor={htmlFor} className="font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <Label htmlFor={htmlFor} className="font-mono text-[12px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </Label>
       {children}

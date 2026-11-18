@@ -140,7 +140,7 @@ export function NoteTree({
       <div className={cn(row, allSel && rowSel)}>
         <button type="button" className={main} onClick={() => onScope({ nb: "", sec: "" })}>
           <span className="min-w-0 flex-1 truncate">Tüm notlar</span>
-          <span className="font-mono text-[11px] font-medium text-muted-foreground">{notes.length}</span>
+          <span className="font-mono text-[12px] font-medium text-muted-foreground">{notes.length}</span>
         </button>
       </div>
 
@@ -181,7 +181,7 @@ export function NoteTree({
               >
                 <span className="h-4 w-4 shrink-0 rounded" style={{ background: nb.color }} />
                 <span className="min-w-0 flex-1 truncate">{nb.name}</span>
-                <span className="font-mono text-[11px] font-medium text-muted-foreground">{total}</span>
+                <span className="font-mono text-[12px] font-medium text-muted-foreground">{total}</span>
               </button>
               <button
                 type="button"
@@ -201,7 +201,7 @@ export function NoteTree({
                       <button type="button" className={main} onClick={() => onScope({ nb: nb.id, sec: s.id })}>
                         <span className="h-4 w-1 shrink-0 rounded-sm" style={{ background: s.color }} />
                         <span className="min-w-0 flex-1 truncate">{s.name}</span>
-                        <span className="font-mono text-[11px] font-medium text-muted-foreground">{counts[s.id] ?? 0}</span>
+                        <span className="font-mono text-[12px] font-medium text-muted-foreground">{counts[s.id] ?? 0}</span>
                       </button>
                       <button
                         type="button"
@@ -236,7 +236,7 @@ export function NoteTree({
         <div className={cn(row, scope.sec === "none" && rowSel)}>
           <button type="button" className={main} onClick={() => onScope({ nb: "", sec: "none" })}>
             <span className="min-w-0 flex-1 truncate">Bölümsüz notlar</span>
-            <span className="font-mono text-[11px] font-medium text-muted-foreground">{counts.none}</span>
+            <span className="font-mono text-[12px] font-medium text-muted-foreground">{counts.none}</span>
           </button>
         </div>
       ) : null}

@@ -18,7 +18,7 @@ export function FileRow({ file, data, inProject }: { file: F; data: Data; inProj
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt="" loading="lazy" className="h-[38px] w-[38px] shrink-0 rounded-md bg-muted object-cover" />
       ) : (
-        <span className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-md bg-muted font-mono text-[10px] font-medium uppercase text-muted-foreground">
+        <span className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-md bg-muted font-mono text-[11px] font-medium uppercase text-muted-foreground">
           {(extOf(file.name) || "dosya").slice(0, 4)}
         </span>
       )}

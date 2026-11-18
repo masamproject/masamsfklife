@@ -90,7 +90,7 @@ export function ProjectsView() {
                 >
                   <div className="font-medium [overflow-wrap:anywhere]">{p.name}</div>
                   {p.description && <div className="line-clamp-1 text-[13px] text-muted-foreground">{p.description}</div>}
-                  <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                  <div className="mt-0.5 font-mono text-[12px] text-muted-foreground">
                     {it.tasks.filter((t) => !t.isCompleted).length} açık görev · {it.notes.length} not · {it.files.length} dosya
                   </div>
                 </button>
@@ -205,7 +205,7 @@ function Detail({ project: p, data, onBack }: { project: Project; data: Data; on
               .map((n) => (
                 <button key={n.id} type="button" onClick={() => router.push(`/toplanti?note=${n.id}`)} className="block w-full border-t px-3 py-[9px] text-left first:border-t-0 hover:bg-background">
                   <div className="font-medium [overflow-wrap:anywhere]">{n.title || (n.type === "meeting" ? "Başlıksız toplantı" : "Başlıksız not")}</div>
-                  <div className="font-mono text-[11px] text-muted-foreground">
+                  <div className="font-mono text-[12px] text-muted-foreground">
                     {n.type === "meeting" ? `Toplantı · ${n.meetingDate ? fmtDay(n.meetingDate, true) : ""}` : `Not · ${fmtStamp(n.updatedAt)}`}
                   </div>
                 </button>

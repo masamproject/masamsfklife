@@ -48,7 +48,7 @@ export function Sidebar() {
               {it.n !== undefined && (
                 <span
                   className={cn(
-                    "hidden rounded-full bg-muted px-1.5 font-mono text-[11px] font-medium text-muted-foreground md:inline",
+                    "hidden rounded-full bg-muted px-1.5 font-mono text-[12px] font-medium text-muted-foreground md:inline",
                     pathname.startsWith(it.href) && "bg-card text-primary",
                   )}
                 >
