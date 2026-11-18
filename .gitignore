@@ -37,3 +37,6 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# Kullanıcının kişisel/müşteri dosyaları (repoya girmemeli)
+1.Dosyalarım */
