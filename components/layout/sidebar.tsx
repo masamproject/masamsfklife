@@ -19,7 +19,7 @@ export function Sidebar() {
 
   const items = [
     { href: "/projeler", label: "Projeler", icon: Folder, n: live(data?.projects).length },
-    { href: "/toplanti", label: "Toplantı Notları", icon: FileText, n: live(data?.notes).length },
+    { href: "/toplanti", label: "Notlarım", icon: FileText, n: live(data?.notes).length },
     { href: "/gorevler", label: "Görevler", icon: SquareCheck, n: live(data?.tasks).filter((t) => !t.isCompleted).length },
     { href: "/dosyalar", label: "Dosyalar", icon: Paperclip, n: live(data?.files).length },
     { sep: true as const },
