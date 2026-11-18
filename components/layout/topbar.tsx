@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
-import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { useFilter } from "@/components/providers/filter-provider";
 import { useIsFetching } from "@tanstack/react-query";
 import { usePendingWrites, useWorkspaceData } from "@/lib/hooks/use-data";
@@ -29,20 +28,19 @@ export function Topbar() {
       <Link href="/gorevler" className="w-[188px] text-[17px] font-semibold tracking-tight max-md:hidden">
         Masam
       </Link>
-      <WorkspaceSwitcher />
       {!hideProject && (
         <nav
           aria-label="Proje filtresi"
           className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:thin] max-md:basis-full max-md:order-last"
         >
-          {[{ id: "", name: "Tüm projeler" }, ...sorted].map((p) => {
-            const active = (pfValid ? pf : "") === p.id;
+          {sorted.map((p) => {
+            const active = pfValid && pf === p.id;
             return (
               <button
-                key={p.id || "all"}
+                key={p.id}
                 type="button"
                 aria-pressed={active}
-                onClick={() => setPf(p.id)}
+                onClick={() => setPf(active ? "" : p.id)}
                 className={
                   "h-8 shrink-0 whitespace-nowrap rounded-md border px-3 text-sm font-medium transition-colors " +
                   (active

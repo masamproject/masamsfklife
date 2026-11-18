@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Building2, Check, ChevronsUpDown, Plus, UserPlus } from "lucide-react";
+import { Building2, Check, Plus, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { InviteDialog } from "@/components/layout/invite-dialog";
@@ -15,17 +15,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 
-export function WorkspaceSwitcher() {
+/** Çalışma alanı menü öğeleri (kullanıcı menüsünün içine) + dialoglar (menünün dışına konur). */
+export function useWorkspaceSwitcher() {
   const ws = useWorkspace();
   const router = useRouter();
   const qc = useQueryClient();
@@ -49,9 +47,12 @@ export function WorkspaceSwitcher() {
     if (!n) return;
     setBusy(true);
     setError(null);
-    const slug = `${n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "ekip"}-${Math.random()
-      .toString(36)
-      .slice(2, 8)}`;
+    const slug = `${
+      n
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "ekip"
+    }-${Math.random().toString(36).slice(2, 8)}`;
     const res = await authClient.organization.create({ name: n, slug });
     if (res.error || !res.data) {
       setBusy(false);
@@ -69,36 +70,30 @@ export function WorkspaceSwitcher() {
 
   const canInvite = ws.role === "owner" || ws.role === "admin";
 
-  return (
+  const items = (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="max-w-[11rem] gap-2 px-2.5">
-            <Building2 className="h-4 w-4 shrink-0" />
-            <span className="truncate">{ws.name}</span>
-            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-60">
-          <DropdownMenuLabel>Çalışma alanları</DropdownMenuLabel>
-          {orgs?.map((o) => (
-            <DropdownMenuItem key={o.id} onClick={() => switchTo(o.id)}>
-              <span className="flex-1 truncate">{o.name}</span>
-              {o.id === ws.id && <Check className="h-4 w-4" />}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Yeni ekip alanı
-          </DropdownMenuItem>
-          {canInvite && (
-            <DropdownMenuItem onClick={() => setInviteOpen(true)}>
-              <UserPlus className="mr-2 h-4 w-4" /> Üye davet et
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <DropdownMenuLabel>Çalışma alanları</DropdownMenuLabel>
+      {orgs?.map((o) => (
+        <DropdownMenuItem key={o.id} onClick={() => switchTo(o.id)}>
+          <Building2 className="mr-2 h-4 w-4 shrink-0" />
+          <span className="flex-1 truncate">{o.name}</span>
+          {o.id === ws.id && <Check className="h-4 w-4" />}
+        </DropdownMenuItem>
+      ))}
+      <DropdownMenuItem onClick={() => setCreateOpen(true)}>
+        <Plus className="mr-2 h-4 w-4" /> Yeni ekip alanı
+      </DropdownMenuItem>
+      {canInvite && (
+        <DropdownMenuItem onClick={() => setInviteOpen(true)}>
+          <UserPlus className="mr-2 h-4 w-4" /> Üye davet et
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuSeparator />
+    </>
+  );
 
+  const dialogs = (
+    <>
       <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -123,4 +118,6 @@ export function WorkspaceSwitcher() {
       </Dialog>
     </>
   );
+
+  return { items, dialogs };
 }

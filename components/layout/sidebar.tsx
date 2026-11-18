@@ -95,6 +95,14 @@ export function Sidebar() {
           {collapsed ? <PanelLeftOpen className="h-4 w-4 shrink-0" /> : <PanelLeftClose className="h-4 w-4 shrink-0" />}
           <span className="text-xs">{collapsed ? "Genişlet" : "Daralt"}</span>
         </button>
+        <div
+          className={cn(
+            "mb-1 mt-2 hidden whitespace-nowrap px-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 md:block",
+            rail && "md:invisible",
+          )}
+        >
+          Ben
+        </div>
         <nav aria-label="Bölümler" className="flex gap-1 overflow-x-auto px-3 py-2 md:flex-1 md:flex-col md:gap-0.5 md:overflow-visible md:p-0">
           {items.map((it, i) =>
             "sep" in it ? (
