@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
     const id = randomUUID();
     const blobKey = `${ctx.workspaceId}/${id}`;
-    await putBlob(blobKey, await file.arrayBuffer(), { name: file.name });
+    await putBlob(blobKey, await file.arrayBuffer(), type);
     const [row] = await db
       .insert(files)
       .values({

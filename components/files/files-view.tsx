@@ -57,7 +57,7 @@ export function FilesView() {
         />
       </div>
       <p className="mb-[18px] text-xs text-muted-foreground">
-        Görsel (PNG, JPG, GIF, WebP, SVG), PDF, video (MP4, WebM) ve metin (TXT, MD, CSV, JSON) yüklenir. Dosya başına en fazla 5 MB. Word, Excel, PowerPoint ve zip şimdilik yüklenemez.
+        Görsel (PNG, JPG, GIF, WebP, SVG), PDF, video (MP4, WebM) ve metin (TXT, MD, CSV, JSON) yüklenir. Dosya başına en fazla 4 MB. Word, Excel, PowerPoint ve zip şimdilik yüklenemez.
       </p>
       {all.length === 0 ? (
         <EmptyState title="Henüz dosya yok">Yüklediğin dosyalar burada listelenir, istersen bir projeye bağlarsın.</EmptyState>

@@ -1,18 +1,22 @@
-import { getStore } from "@netlify/blobs";
+import { del, get, put } from "@vercel/blob";
 
-const store = () => getStore({ name: "files", consistency: "strong" });
-
-export async function putBlob(key: string, data: ArrayBuffer, metadata: Record<string, string>) {
-  await store().set(key, data, { metadata });
+/** Dosya içerikleri Vercel Blob'da (private store) tutulur; erişim /api/files/[id] üzerinden yetkili. */
+export async function putBlob(key: string, data: ArrayBuffer, contentType?: string) {
+  await put(key, data, {
+    access: "private",
+    addRandomSuffix: false,
+    contentType,
+  });
 }
 
 export async function getBlob(key: string) {
-  return store().get(key, { type: "stream" });
+  const res = await get(key, { access: "private" });
+  return res && res.statusCode === 200 ? res.stream : null;
 }
 
 export async function deleteBlob(key: string) {
   try {
-    await store().delete(key);
+    await del(key);
   } catch {
     /* blob zaten silinmiş olabilir */
   }

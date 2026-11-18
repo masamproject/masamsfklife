@@ -1,36 +1,26 @@
-import { getDatabase } from "@netlify/database";
+import { neon } from "@neondatabase/serverless";
 import { drizzle as drizzleNeon } from "drizzle-orm/neon-http";
-import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
 
 /**
- * Netlify Database bağlantısı (NETLIFY_DB_URL).
- *  - production/serverless: Neon HTTP sürücüsü
- *  - yerel (netlify dev): pg pool
- * İki sürücünün sorgu API'si aynı; transaction/batch farkı yüzünden
- * kod tarafında yalnızca ortak API kullanılır.
+ * Neon Postgres bağlantısı (DATABASE_URL, Vercel Marketplace Neon ekleyince otomatik gelir).
+ * Neon HTTP sürücüsü kullanılır; transaction/batch yerine yalnızca ortak sorgu API'si.
  */
 function create() {
-  const conn = getDatabase({
-    connectionString:
-      process.env.NETLIFY_DB_URL ??
-      process.env.NETLIFY_DATABASE_URL ??
-      process.env.DATABASE_URL,
-  });
-  if (conn.driver === "serverless") {
-    return drizzleNeon(conn.httpClient, { schema });
-  }
-  return drizzlePg(conn.pool, { schema });
+  const url =
+    process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? process.env.DATABASE_URL_UNPOOLED;
+  if (!url) throw new Error("DATABASE_URL tanımlı değil.");
+  return drizzleNeon(neon(url), { schema });
 }
 
-type Db = ReturnType<typeof drizzleNeon<typeof schema>>;
+type Db = ReturnType<typeof create>;
 
 const globalForDb = globalThis as unknown as { __db?: Db };
 
 /** Lazy: bağlantı ilk sorguda kurulur (build sırasında env olmayabilir). */
 export const db: Db = new Proxy({} as Db, {
   get(_t, prop) {
-    const real = (globalForDb.__db ??= create() as unknown as Db);
+    const real = (globalForDb.__db ??= create());
     const v = Reflect.get(real as object, prop);
     return typeof v === "function" ? v.bind(real) : v;
   },
