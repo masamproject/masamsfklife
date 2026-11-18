@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
 import { useFilter } from "@/components/providers/filter-provider";
 import { useIsFetching } from "@tanstack/react-query";
@@ -67,7 +66,6 @@ export function Topbar() {
       <span className="whitespace-nowrap font-mono text-xs text-muted-foreground" aria-live="polite">
         {status}
       </span>
-      <ThemeToggle />
       <UserMenu />
     </header>
   );

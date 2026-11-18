@@ -8,7 +8,6 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { getSession } from "@/lib/session";
 
@@ -57,7 +56,6 @@ export default async function LandingPage() {
       <header className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         <span className="text-xl font-bold tracking-tight">Masam</span>
         <nav className="flex items-center gap-2">
-          <ThemeToggle />
           {!session && (
             <Button asChild variant="ghost">
               <Link href="/giris">Giriş</Link>
