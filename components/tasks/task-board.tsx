@@ -20,13 +20,11 @@ import { toast } from "sonner";
 import { TaskCardView } from "@/components/tasks/task-card";
 import { TaskColumn } from "@/components/tasks/task-column";
 import { matches, useFilter } from "@/components/providers/filter-provider";
-import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Task } from "@/db/schema";
 import { useIsDesktop } from "@/lib/hooks/use-desktop";
 import { listsFor, useDataActions, useWorkspaceData } from "@/lib/hooks/use-data";
-import { PLAN_LIMITS } from "@/lib/plan";
 
 // Kart > sütun önceliği: imleç bir kartın üzerindeyse onu, değilse sütunu hedefle
 const collision: CollisionDetection = (args) => {
@@ -38,7 +36,6 @@ const collision: CollisionDetection = (args) => {
 };
 
 export function TaskBoard() {
-  const ws = useWorkspace();
   const { q, pf } = useFilter();
   const { data, isLoading } = useWorkspaceData();
   const a = useDataActions();
@@ -78,7 +75,6 @@ export function TaskBoard() {
   const ownScope = pf && data.lists.some((l) => l.projectId === pf) ? pf : null;
   const scopeLists = data.lists.filter((l) => (l.projectId ?? null) === ownScope);
   const byList = (id: string) => visible.filter((t) => t.listId === id);
-  const limitReached = ws.plan === "free" && scopeLists.length >= PLAN_LIMITS.free.lists;
 
   function onDragEnd(e: DragEndEvent) {
     setActive(null);
@@ -173,15 +169,9 @@ export function TaskBoard() {
         })}
 
         <div className="w-44 shrink-0">
-          {limitReached ? (
-            <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-              Free planda en fazla {PLAN_LIMITS.free.lists} liste olabilir. Daha fazlası için Pro&apos;ya geç.
-            </p>
-          ) : (
-            <Button variant="outline" onClick={addList}>
+          <Button variant="outline" onClick={addList}>
               <Plus className="mr-1.5 h-3.5 w-3.5" /> Liste ekle
             </Button>
-          )}
         </div>
       </div>
 

@@ -17,8 +17,6 @@ import {
 } from "@/db/schema";
 import { ActionError, workspaceAction } from "@/lib/actions/safe-action";
 import { deleteBlob } from "@/lib/blobs";
-import { PLAN_LIMITS } from "@/lib/plan";
-import { effectivePlan } from "@/lib/plan-server";
 
 const id = z.string().min(1).max(64);
 const position = z.string().min(1).max(64);
@@ -65,21 +63,6 @@ async function assertList(workspaceId: string, listId: string) {
     .limit(1);
   if (!row) throw new ActionError("Liste bulunamadı.");
   return row;
-}
-
-/** Aynı kapsamdaki (aynı proje ya da ortak) canlı liste sayısı: plan sınırı kapsam başınadır. */
-async function scopeListCount(workspaceId: string, projectId: string | null) {
-  const rows = await db
-    .select({ id: lists.id })
-    .from(lists)
-    .where(
-      and(
-        eq(lists.workspaceId, workspaceId),
-        isNull(lists.deletedAt),
-        projectId ? eq(lists.projectId, projectId) : isNull(lists.projectId),
-      ),
-    );
-  return rows.length;
 }
 
 async function assertProject(workspaceId: string, projectId: string) {
@@ -154,11 +137,6 @@ export const createList = workspaceAction(
   async (d, ctx) => {
     const projectId = d.projectId ?? null;
     if (projectId) await assertProject(ctx.workspaceId, projectId);
-    if ((await effectivePlan(ctx.workspaceId)) !== "pro") {
-      if ((await scopeListCount(ctx.workspaceId, projectId)) >= PLAN_LIMITS.free.lists) {
-        throw new ActionError(`Free planda bir panoda en fazla ${PLAN_LIMITS.free.lists} liste olabilir. Pro'ya geç.`);
-      }
-    }
     await db.insert(lists).values({ id: d.id, workspaceId: ctx.workspaceId, title: d.title, position: d.position, projectId });
   },
 );
@@ -410,14 +388,6 @@ export const setState = workspaceAction(
       return;
     }
     // restore
-    if (d.kind === "list") {
-      const list = await db.select({ projectId: lists.projectId }).from(lists).where(and(eq(lists.id, d.id), eq(lists.workspaceId, ctx.workspaceId))).limit(1);
-      if ((await effectivePlan(ctx.workspaceId)) !== "pro" && list[0]) {
-        if ((await scopeListCount(ctx.workspaceId, list[0].projectId)) >= PLAN_LIMITS.free.lists) {
-          throw new ActionError(`Free planda bir panoda en fazla ${PLAN_LIMITS.free.lists} liste olabilir.`);
-        }
-      }
-    }
     await db.update(table).set({ deletedAt: null }).where(where);
   },
 );

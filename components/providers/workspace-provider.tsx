@@ -5,7 +5,6 @@ import { createContext, useContext } from "react";
 export type WorkspaceCtx = {
   id: string;
   name: string;
-  plan: "free" | "pro";
   role: "owner" | "admin" | "member";
   user: { id: string; name: string; email: string; image?: string | null };
 };

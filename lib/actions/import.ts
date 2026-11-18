@@ -5,9 +5,7 @@ import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing";
 import { z } from "zod";
 import { db } from "@/db";
 import { lists, projects, tasks } from "@/db/schema";
-import { ActionError, workspaceAction } from "@/lib/actions/safe-action";
-import { PLAN_LIMITS } from "@/lib/plan";
-import { effectivePlan } from "@/lib/plan-server";
+import { workspaceAction } from "@/lib/actions/safe-action";
 
 const card = z.object({
   title: z.string().trim().min(1).max(500),
@@ -80,12 +78,6 @@ export const importBoard = workspaceAction(board, async (d, ctx) => {
     .where(and(eq(lists.workspaceId, w), isNull(lists.deletedAt), eq(lists.projectId, pid)))
     .orderBy(asc(bytes(lists.position)));
   const byTitle = new Map(scope.map((l) => [norm(l.title), l]));
-  const missing = d.lists.filter((l) => !byTitle.has(norm(l.title)));
-  if ((await effectivePlan(w)) !== "pro" && scope.length + missing.length > PLAN_LIMITS.free.lists) {
-    throw new ActionError(
-      `Bu pano ${missing.length} yeni liste ekler; Free planda bir panoda en fazla ${PLAN_LIMITS.free.lists} liste olabilir.`,
-    );
-  }
 
   let lastPos = scope.at(-1)?.position ?? null;
   let hasDone = scope.some((l) => l.isDone);

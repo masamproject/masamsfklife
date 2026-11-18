@@ -24,7 +24,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       value={{
         id: ws.data.id,
         name: ws.data.name,
-        plan: ws.data.plan,
         role: ws.data.role,
         user: {
           id: session.user.id,
