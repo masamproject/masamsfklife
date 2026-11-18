@@ -1,12 +1,14 @@
 /** İçe aktarma biçimleri: Masam JSON ({lists:[{title,cards:[{title,...}]}]}) ve Trello "JSON olarak dışa aktar". */
 export type ImportBoard = {
-  lists: { title: string; cards: { title: string; description?: string; labels?: string[]; due?: string | null }[] }[];
+  lists: { title: string; done?: boolean; cards: { title: string; description?: string; labels?: string[]; due?: string | null }[] }[];
   name?: string;
 };
 
 type Json = Record<string, unknown>;
 const isObj = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown) => (typeof v === "string" ? v : "");
+/** "Tamamlandı / Bitti / Done" gibi adlar tamamlanan sütun sayılır. */
+const DONE = /^(tamamland[ıi]|bitti|bitenler|done|completed|finished)\.?$/i;
 
 export function parseImport(text: string): ImportBoard {
   let raw: unknown;
@@ -25,6 +27,7 @@ export function parseImport(text: string): ImportBoard {
       .sort((a, b) => Number(a.pos ?? 0) - Number(b.pos ?? 0))
       .map((l) => ({
         title: str(l.name),
+        done: DONE.test(str(l.name).trim()),
         cards: cards
           .filter((c) => c.idList === l.id)
           .sort((a, b) => Number(a.pos ?? 0) - Number(b.pos ?? 0))
@@ -43,6 +46,7 @@ export function parseImport(text: string): ImportBoard {
   // Masam biçimi
   const lists = (raw.lists as Json[]).map((l) => ({
     title: str(l.title) || str(l.name),
+    done: typeof l.done === "boolean" ? l.done : DONE.test((str(l.title) || str(l.name)).trim()),
     cards: (Array.isArray(l.cards) ? (l.cards as unknown[]) : []).map((c) =>
       typeof c === "string"
         ? { title: c }

@@ -63,8 +63,8 @@ export function ImportDialog() {
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[560px]">
         <DialogTitle>Pano içe aktar</DialogTitle>
         <DialogDescription>
-          Trello panosunda Menü, Yazdır ve dışa aktar, JSON olarak dışa aktar yolundan aldığın dosyayı ya da Masam JSON&apos;unu yapıştır. Listeler ve kartlar eklenir, son liste
-          &quot;tamamlanan&quot; olur. Aynı panoyu iki kez aktarırsan kartlar tekrar eklenir.
+          Trello panosunda Menü, Yazdır ve dışa aktar, JSON olarak dışa aktar yolundan aldığın dosyayı ya da Masam JSON&apos;unu yapıştır. Listeler seçtiğin projenin kendi panosu olarak eklenir; &quot;Tamamlandı&quot; ya da &quot;Bitti&quot; adlı liste tamamlanan sütun olur.
+          Aynı panoyu iki kez aktarırsan kartlar tekrar eklenir.
         </DialogDescription>
 
         <div className="space-y-3">

@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Task } from "@/db/schema";
 import { useIsDesktop } from "@/lib/hooks/use-desktop";
-import { useDataActions, useWorkspaceData } from "@/lib/hooks/use-data";
+import { listsFor, useDataActions, useWorkspaceData } from "@/lib/hooks/use-data";
 import { PLAN_LIMITS } from "@/lib/plan";
 
 // Kart > sütun önceliği: imleç bir kartın üzerindeyse onu, değilse sütunu hedefle
@@ -65,10 +65,20 @@ export function TaskBoard() {
     );
   }
 
-  const { lists } = data;
-  const lastId = lists.at(-1)?.id;
+  // Proje seçiliyse onun panosu; "Tüm projeler"de ortak sütunlar, sonra proje sütunları proje sırasıyla
+  const projectName = (id: string | null) => data.projects.find((p) => p.id === id)?.name ?? "";
+  const lists = pf
+    ? listsFor(data, pf)
+    : [...data.lists].sort((x, y) => {
+        if (!x.projectId !== !y.projectId) return x.projectId ? 1 : -1;
+        const byProject = projectName(x.projectId).localeCompare(projectName(y.projectId), "tr");
+        return byProject || (x.position < y.position ? -1 : 1);
+      });
+  // Yeni liste hangi kapsama eklenir: projenin kendi sütunları varsa projeye, yoksa ortak
+  const ownScope = pf && data.lists.some((l) => l.projectId === pf) ? pf : null;
+  const scopeLists = data.lists.filter((l) => (l.projectId ?? null) === ownScope);
   const byList = (id: string) => visible.filter((t) => t.listId === id);
-  const limitReached = ws.plan === "free" && lists.length >= PLAN_LIMITS.free.lists;
+  const limitReached = ws.plan === "free" && scopeLists.length >= PLAN_LIMITS.free.lists;
 
   function onDragEnd(e: DragEndEvent) {
     setActive(null);
@@ -107,13 +117,13 @@ export function TaskBoard() {
   }
 
   function addList() {
-    // "Bitti" sütunundan önceye eklenir (son sütun hep tamamlanan)
-    const last = lists.at(-1);
-    const before = lists.at(-2);
+    // Tamamlanan sütun varsa yeni liste ondan önceye, yoksa sona eklenir
+    const doneIdx = scopeLists.findIndex((l) => l.isDone);
+    const before = doneIdx > 0 ? scopeLists[doneIdx - 1] : doneIdx === 0 ? undefined : scopeLists.at(-1);
+    const after = doneIdx >= 0 ? scopeLists[doneIdx] : undefined;
     const id = crypto.randomUUID();
-    const position = generateKeyBetween(before?.position ?? null, last?.position ?? null);
     setFocusList(id);
-    a.addList({ id, title: "Yeni liste", position: last ? position : generateKeyBetween(null, null) });
+    a.addList({ id, title: "Yeni liste", projectId: ownScope, position: generateKeyBetween(before?.position ?? null, after?.position ?? null) });
   }
 
   const activeTask = active ? live.find((t) => t.id === active) : null;
@@ -135,12 +145,14 @@ export function TaskBoard() {
               key={l.id}
               list={l}
               tasks={tasks}
-              isLast={l.id === lastId}
+              isDone={l.isDone}
+              projectLabel={!pf && l.projectId ? projectName(l.projectId) : ""}
               canDelete={emptyCol && lists.length > 1}
               desktop={desktop}
               showProject={!pf}
               autoFocusName={focusList === l.id}
               onRename={(title) => a.renameList(l.id, title)}
+              onToggleDone={() => a.setListDone(l.id, !l.isDone)}
               onDelete={() => a.trash("list", l.id)}
               onArchiveAll={() => {
                 tasks.forEach((t) => a.archive("task", t.id));
@@ -151,7 +163,7 @@ export function TaskBoard() {
                   id: crypto.randomUUID(),
                   title,
                   listId: l.id,
-                  projectId: pf || null,
+                  projectId: l.projectId ?? (pf || null),
                   position: a.endPosition(data, l.id),
                 })
               }

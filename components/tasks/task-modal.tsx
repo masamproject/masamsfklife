@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Task } from "@/db/schema";
-import { useDataActions, useWorkspaceData, type Data } from "@/lib/hooks/use-data";
+import { listsFor, useDataActions, useWorkspaceData, type Data } from "@/lib/hooks/use-data";
 import { useSaver } from "@/lib/hooks/use-saver";
 import { fromDateInput, parseTags, PRIORITY_LABEL, toDateInput } from "@/lib/ui";
 import { cn } from "@/lib/utils";
@@ -111,15 +111,32 @@ function Body({ task, data, onClose }: { task: Task; data: Data; onClose: () => 
               a.moveTask(task.id, e.target.value, a.endPosition(data, e.target.value, task.id));
             }}
           >
-            {data.lists.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.title}
-              </option>
-            ))}
+            {(() => {
+              // Görevin panosundaki listeler (+ şu an bulunduğu liste farklı kapsamdaysa o da)
+              const scope = listsFor(data, task.projectId);
+              const cur = data.lists.find((l) => l.id === task.listId);
+              return (cur && !scope.some((l) => l.id === cur.id) ? [cur, ...scope] : scope).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.title}
+                </option>
+              ));
+            })()}
           </NativeSelect>
         </Field>
         <Field label="Proje" htmlFor="m-proj">
-          <NativeSelect id="m-proj" value={task.projectId ?? ""} onChange={(e) => a.patchTask(task.id, { projectId: e.target.value || null })}>
+          <NativeSelect
+            id="m-proj"
+            value={task.projectId ?? ""}
+            onChange={(e) => {
+              const projectId = e.target.value || null;
+              a.patchTask(task.id, { projectId });
+              // Yeni projenin panosunda bu liste yoksa ilk listesine taşı
+              const scope = listsFor(data, projectId);
+              if (scope.length && !scope.some((l) => l.id === task.listId)) {
+                a.moveTask(task.id, scope[0].id, a.endPosition(data, scope[0].id, task.id));
+              }
+            }}
+          >
             <option value="">Proje yok</option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>

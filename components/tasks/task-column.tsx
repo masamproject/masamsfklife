@@ -2,7 +2,7 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus, X } from "lucide-react";
+import { CircleCheck, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { SortableTask } from "@/components/tasks/task-card";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,14 @@ import { cn } from "@/lib/utils";
 export function TaskColumn({
   list,
   tasks,
-  isLast,
+  isDone,
+  projectLabel,
   canDelete,
   desktop,
   showProject,
   autoFocusName,
   onRename,
+  onToggleDone,
   onDelete,
   onArchiveAll,
   onAdd,
@@ -25,12 +27,14 @@ export function TaskColumn({
 }: {
   list: List;
   tasks: Task[];
-  isLast: boolean;
+  isDone: boolean;
+  projectLabel: string;
   canDelete: boolean;
   desktop: boolean;
   showProject: boolean;
   autoFocusName: boolean;
   onRename: (title: string) => void;
+  onToggleDone: () => void;
   onDelete: () => void;
   onArchiveAll: () => void;
   onAdd: (title: string) => void;
@@ -70,7 +74,18 @@ export function TaskColumn({
           className="min-w-0 flex-1 rounded bg-transparent p-1 font-semibold hover:bg-card focus:bg-card"
         />
         <span className="font-mono text-xs font-medium text-muted-foreground">{tasks.length}</span>
-        {isLast && tasks.length > 0 && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn("h-7 w-7", isDone ? "text-primary" : "text-muted-foreground/50 hover:text-muted-foreground")}
+          aria-label={isDone ? "Tamamlanan sütun (kaldır)" : "Tamamlanan sütun yap"}
+          aria-pressed={isDone}
+          title={isDone ? "Tamamlanan sütun: buraya giren görev tamamlanır" : "Tamamlanan sütun yap"}
+          onClick={onToggleDone}
+        >
+          <CircleCheck className="h-4 w-4" />
+        </Button>
+        {isDone && tasks.length > 0 && (
           <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={onArchiveAll}>
             Hepsini arşivle
           </Button>
@@ -88,6 +103,12 @@ export function TaskColumn({
           </Button>
         )}
       </div>
+
+      {projectLabel && (
+        <div className="-mt-1.5 truncate px-2 pb-1.5 font-mono text-[10px] font-medium uppercase tracking-wider text-primary" title={projectLabel}>
+          {projectLabel}
+        </div>
+      )}
 
       <div ref={setNodeRef} className={cn("flex min-h-[44px] flex-1 flex-col gap-2 overflow-y-auto rounded-lg p-0.5", isOver && "bg-primary-soft")}>
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>

@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { generateNKeysBetween } from "fractional-indexing";
 import { z } from "zod";
 import { db } from "@/db";
@@ -25,6 +25,9 @@ const position = z.string().min(1).max(64);
 const name = z.string().trim().min(1).max(200);
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
+/** Fractional index anahtarları bayt sırasıyla karşılaştırılmalı: DB dil sıralaması (collation) bunu bozabilir. */
+const bytes = (col: Parameters<typeof asc>[0]) => sql`${col} COLLATE "C"`;
+
 const DEFAULT_LISTS = ["Yapılacak", "Sürüyor", "Bitti"];
 
 /* ------------------------------------------------------------------ */
@@ -47,29 +50,36 @@ async function ensureDefaultLists(workspaceId: string) {
         workspaceId,
         title,
         position: keys[i],
+        isDone: i === DEFAULT_LISTS.length - 1,
       })),
     )
     .onConflictDoUpdate({ target: lists.id, set: { deletedAt: null } });
 }
 
-/** Son liste = "Bitti" sütunu; oraya giren görev tamamlanmış sayılır. */
-async function lastListId(workspaceId: string) {
-  const [row] = await db
-    .select({ id: lists.id })
-    .from(lists)
-    .where(and(eq(lists.workspaceId, workspaceId), isNull(lists.deletedAt)))
-    .orderBy(desc(lists.position))
-    .limit(1);
-  return row?.id ?? null;
-}
-
+/** Listeyi doğrular ve (proje kapsamı + tamamlanan işareti ile) döndürür. */
 async function assertList(workspaceId: string, listId: string) {
   const [row] = await db
-    .select({ id: lists.id })
+    .select({ id: lists.id, projectId: lists.projectId, isDone: lists.isDone })
     .from(lists)
     .where(and(eq(lists.id, listId), eq(lists.workspaceId, workspaceId), isNull(lists.deletedAt)))
     .limit(1);
   if (!row) throw new ActionError("Liste bulunamadı.");
+  return row;
+}
+
+/** Aynı kapsamdaki (aynı proje ya da ortak) canlı liste sayısı: plan sınırı kapsam başınadır. */
+async function scopeListCount(workspaceId: string, projectId: string | null) {
+  const rows = await db
+    .select({ id: lists.id })
+    .from(lists)
+    .where(
+      and(
+        eq(lists.workspaceId, workspaceId),
+        isNull(lists.deletedAt),
+        projectId ? eq(lists.projectId, projectId) : isNull(lists.projectId),
+      ),
+    );
+  return rows.length;
 }
 
 async function assertProject(workspaceId: string, projectId: string) {
@@ -106,12 +116,12 @@ export const getWorkspaceData = workspaceAction(z.void(), async (_, ctx) => {
   const w = ctx.workspaceId;
   await ensureDefaultLists(w);
   const [l, t, n, p, nb, sec, f, m] = await Promise.all([
-    db.select().from(lists).where(and(eq(lists.workspaceId, w), isNull(lists.deletedAt))).orderBy(asc(lists.position)),
-    db.select().from(tasks).where(and(eq(tasks.workspaceId, w), isNull(tasks.deletedAt))).orderBy(asc(tasks.position)),
+    db.select().from(lists).where(and(eq(lists.workspaceId, w), isNull(lists.deletedAt))).orderBy(asc(bytes(lists.position))),
+    db.select().from(tasks).where(and(eq(tasks.workspaceId, w), isNull(tasks.deletedAt))).orderBy(asc(bytes(tasks.position))),
     db.select().from(notes).where(and(eq(notes.workspaceId, w), isNull(notes.deletedAt))).orderBy(desc(notes.updatedAt)).limit(1000),
     db.select().from(projects).where(and(eq(projects.workspaceId, w), isNull(projects.deletedAt))).orderBy(asc(projects.name)),
-    db.select().from(notebooks).where(and(eq(notebooks.workspaceId, w), isNull(notebooks.deletedAt))).orderBy(asc(notebooks.position)),
-    db.select().from(sections).where(and(eq(sections.workspaceId, w), isNull(sections.deletedAt))).orderBy(asc(sections.position)),
+    db.select().from(notebooks).where(and(eq(notebooks.workspaceId, w), isNull(notebooks.deletedAt))).orderBy(asc(bytes(notebooks.position))),
+    db.select().from(sections).where(and(eq(sections.workspaceId, w), isNull(sections.deletedAt))).orderBy(asc(bytes(sections.position))),
     db.select().from(files).where(and(eq(files.workspaceId, w), isNull(files.deletedAt))).orderBy(desc(files.createdAt)),
     db
       .select({ id: user.id, name: user.name, email: user.email, image: user.image })
@@ -139,14 +149,39 @@ export const getTrash = workspaceAction(z.void(), async (_, ctx) => {
 /* ------------------------------------------------------------------ */
 /* Listeler (kanban sütunları)                                         */
 /* ------------------------------------------------------------------ */
-export const createList = workspaceAction(z.object({ id, title: name, position }), async (d, ctx) => {
-  if ((await effectivePlan(ctx.workspaceId)) !== "pro") {
-    const live = await db.select({ id: lists.id }).from(lists).where(and(eq(lists.workspaceId, ctx.workspaceId), isNull(lists.deletedAt)));
-    if (live.length >= PLAN_LIMITS.free.lists) {
-      throw new ActionError(`Free planda en fazla ${PLAN_LIMITS.free.lists} liste olabilir. Pro'ya geç.`);
+export const createList = workspaceAction(
+  z.object({ id, title: name, position, projectId: id.nullable().optional() }),
+  async (d, ctx) => {
+    const projectId = d.projectId ?? null;
+    if (projectId) await assertProject(ctx.workspaceId, projectId);
+    if ((await effectivePlan(ctx.workspaceId)) !== "pro") {
+      if ((await scopeListCount(ctx.workspaceId, projectId)) >= PLAN_LIMITS.free.lists) {
+        throw new ActionError(`Free planda bir panoda en fazla ${PLAN_LIMITS.free.lists} liste olabilir. Pro'ya geç.`);
+      }
     }
+    await db.insert(lists).values({ id: d.id, workspaceId: ctx.workspaceId, title: d.title, position: d.position, projectId });
+  },
+);
+
+/** Tamamlanan sütun işareti (kapsam başına tek). İşaretlenince/kalkınca listedeki görevlerin durumu da uyar. */
+export const setListDone = workspaceAction(z.object({ id, isDone: z.boolean() }), async (d, ctx) => {
+  const list = await assertList(ctx.workspaceId, d.id);
+  if (d.isDone) {
+    await db
+      .update(lists)
+      .set({ isDone: false })
+      .where(
+        and(
+          eq(lists.workspaceId, ctx.workspaceId),
+          list.projectId ? eq(lists.projectId, list.projectId) : isNull(lists.projectId),
+        ),
+      );
   }
-  await db.insert(lists).values({ id: d.id, workspaceId: ctx.workspaceId, title: d.title, position: d.position });
+  await db.update(lists).set({ isDone: d.isDone }).where(eq(lists.id, d.id));
+  await db
+    .update(tasks)
+    .set({ isCompleted: d.isDone })
+    .where(and(eq(tasks.listId, d.id), eq(tasks.workspaceId, ctx.workspaceId), isNull(tasks.deletedAt)));
 });
 
 export const renameList = workspaceAction(z.object({ id, title: name }), async (d, ctx) => {
@@ -168,8 +203,10 @@ export const createTask = workspaceAction(
     position,
   }),
   async (d, ctx) => {
-    await assertList(ctx.workspaceId, d.listId);
-    if (d.projectId) await assertProject(ctx.workspaceId, d.projectId);
+    const list = await assertList(ctx.workspaceId, d.listId);
+    // proje kapsamlı listedeki görev o projeye aittir
+    const projectId = list.projectId ?? d.projectId ?? null;
+    if (projectId) await assertProject(ctx.workspaceId, projectId);
     if (d.noteId) {
       const [n] = await db.select({ id: notes.id }).from(notes).where(and(eq(notes.id, d.noteId), eq(notes.workspaceId, ctx.workspaceId))).limit(1);
       if (!n) throw new ActionError("Not bulunamadı.");
@@ -179,11 +216,11 @@ export const createTask = workspaceAction(
       workspaceId: ctx.workspaceId,
       creatorId: ctx.userId,
       listId: d.listId,
-      projectId: d.projectId ?? null,
+      projectId,
       noteId: d.noteId ?? null,
       title: d.title,
       position: d.position,
-      isCompleted: d.listId === (await lastListId(ctx.workspaceId)),
+      isCompleted: list.isDone,
     });
   },
 );
@@ -198,6 +235,7 @@ export const updateTask = workspaceAction(
     tags: z.array(z.string().trim().min(1).max(30)).max(20).optional(),
     assigneeId: id.nullable().optional(),
     projectId: id.nullable().optional(),
+    isCompleted: z.boolean().optional(),
   }),
   async ({ id: taskId, ...patch }, ctx) => {
     if (patch.assigneeId) await assertMember(ctx.workspaceId, patch.assigneeId);
@@ -208,12 +246,27 @@ export const updateTask = workspaceAction(
   },
 );
 
-/** Taşı (sürükle, liste menüsü, tamamla). Son listeye giren görev tamamlanmış olur. */
+/**
+ * Taşı (sürükle, liste menüsü, tamamla). Tamamlanan sütuna giren görev tamamlanır,
+ * tamamlanan sütundan çıkan görev açılır; proje kapsamlı listeye giren görev o projeye geçer.
+ */
 export const moveTask = workspaceAction(z.object({ id, listId: id, position }), async (d, ctx) => {
-  await assertList(ctx.workspaceId, d.listId);
+  const target = await assertList(ctx.workspaceId, d.listId);
+  const [cur] = await db
+    .select({ listId: tasks.listId, isCompleted: tasks.isCompleted })
+    .from(tasks)
+    .where(and(eq(tasks.id, d.id), eq(tasks.workspaceId, ctx.workspaceId)))
+    .limit(1);
+  if (!cur) throw new ActionError("Görev bulunamadı.");
+  let sourceDone = false;
+  if (cur.listId) {
+    const [src] = await db.select({ isDone: lists.isDone }).from(lists).where(eq(lists.id, cur.listId)).limit(1);
+    sourceDone = !!src?.isDone;
+  }
+  const isCompleted = target.isDone ? true : sourceDone ? false : cur.isCompleted;
   await db
     .update(tasks)
-    .set({ listId: d.listId, position: d.position, isCompleted: d.listId === (await lastListId(ctx.workspaceId)) })
+    .set({ listId: d.listId, position: d.position, isCompleted, ...(target.projectId ? { projectId: target.projectId } : {}) })
     .where(and(eq(tasks.id, d.id), eq(tasks.workspaceId, ctx.workspaceId)));
 });
 
@@ -358,10 +411,10 @@ export const setState = workspaceAction(
     }
     // restore
     if (d.kind === "list") {
-      if ((await effectivePlan(ctx.workspaceId)) !== "pro") {
-        const live = await db.select({ id: lists.id }).from(lists).where(and(eq(lists.workspaceId, ctx.workspaceId), isNull(lists.deletedAt)));
-        if (live.length >= PLAN_LIMITS.free.lists) {
-          throw new ActionError(`Free planda en fazla ${PLAN_LIMITS.free.lists} liste olabilir.`);
+      const list = await db.select({ projectId: lists.projectId }).from(lists).where(and(eq(lists.id, d.id), eq(lists.workspaceId, ctx.workspaceId))).limit(1);
+      if ((await effectivePlan(ctx.workspaceId)) !== "pro" && list[0]) {
+        if ((await scopeListCount(ctx.workspaceId, list[0].projectId)) >= PLAN_LIMITS.free.lists) {
+          throw new ActionError(`Free planda bir panoda en fazla ${PLAN_LIMITS.free.lists} liste olabilir.`);
         }
       }
     }

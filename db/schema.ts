@@ -231,11 +231,15 @@ export const lists = pgTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
+    // null = ortak sütun (tüm projelerde); dolu = yalnızca o projenin panosunda
+    projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    // Tamamlanan sütun: oraya giren görev tamamlanmış sayılır
+    isDone: boolean("is_done").notNull().default(false),
     position: text("position").notNull(), // fractional index
     createdAt: timestamp("created_at").notNull().defaultNow(),
     deletedAt: timestamp("deleted_at"),
   },
-  (t) => [index("lists_ws_pos_idx").on(t.workspaceId, t.position)],
+  (t) => [index("lists_ws_pos_idx").on(t.workspaceId, t.position), index("lists_project_idx").on(t.projectId)],
 );
 
 export const notes = pgTable(

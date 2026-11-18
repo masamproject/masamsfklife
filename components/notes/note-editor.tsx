@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { Note, NoteAction } from "@/db/schema";
-import { useDataActions, type Data } from "@/lib/hooks/use-data";
+import { firstListFor, useDataActions, type Data } from "@/lib/hooks/use-data";
 import { useSaver } from "@/lib/hooks/use-saver";
 import { fmtStamp, fromDateInput, parseTags, toDateInput } from "@/lib/ui";
 import { cn } from "@/lib/utils";
@@ -63,7 +63,7 @@ export function NoteEditor({ note, data, onBack, autoFocusTitle }: { note: Note;
   };
 
   const toTask = (act: NoteAction) => {
-    const first = data.lists[0];
+    const first = firstListFor(data, note.projectId);
     if (!act.text.trim() || !first) return;
     const taskId = crypto.randomUUID();
     a.addTask({ id: taskId, title: act.text.trim(), listId: first.id, noteId: note.id, projectId: note.projectId, position: a.endPosition(data, first.id) });

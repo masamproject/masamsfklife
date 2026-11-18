@@ -75,6 +75,20 @@ export function usePendingWrites() {
 const byPos = <T extends { position: string }>(a: T, b: T) =>
   a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
 
+/**
+ * Bir projenin panosundaki listeler: projeye özel liste varsa onlar, yoksa ortak listeler.
+ * (projectId boşsa ortak listeler.)
+ */
+export function listsFor(d: Pick<Data, "lists">, projectId: string | null | undefined): List[] {
+  if (projectId) {
+    const own = d.lists.filter((l) => l.projectId === projectId);
+    if (own.length) return own;
+  }
+  return d.lists.filter((l) => !l.projectId);
+}
+export const firstListFor = (d: Pick<Data, "lists">, projectId: string | null | undefined) => listsFor(d, projectId)[0];
+export const doneListFor = (d: Pick<Data, "lists">, projectId: string | null | undefined) => listsFor(d, projectId).find((l) => l.isDone);
+
 type Patch<T> = Partial<Omit<T, "id" | "workspaceId">>;
 const merge = <T extends { id: string }>(arr: T[], id: string, p: object): T[] =>
   arr.map((x) => (x.id === id ? ({ ...x, ...p } as T) : x));
@@ -115,9 +129,6 @@ export function useDataActions() {
   };
 
   /* ------------------------- yardımcılar ------------------------- */
-  const lastList = (d: Data) => d.lists.at(-1);
-  const firstList = (d: Data) => d.lists[0];
-
   /** Bir listenin sonuna eklemek için konum. */
   const endPosition = (d: Data, listId: string, excludeId?: string) => {
     const last = d.tasks
@@ -128,13 +139,32 @@ export function useDataActions() {
   };
 
   /* --------------------------- listeler --------------------------- */
-  const addList = (v: { id: string; title: string; position: string }) =>
+  const addList = (v: { id: string; title: string; position: string; projectId?: string | null }) =>
     opt(
       () => unwrap(api.createList(v)),
       (d) => ({
         ...d,
-        lists: [...d.lists, { id: v.id, workspaceId: ws.id, title: v.title, position: v.position, createdAt: new Date(), deletedAt: null }].sort(byPos),
+        lists: [
+          ...d.lists,
+          { id: v.id, workspaceId: ws.id, title: v.title, position: v.position, projectId: v.projectId ?? null, isDone: false, createdAt: new Date(), deletedAt: null },
+        ].sort(byPos),
       }),
+    );
+  /** Tamamlanan sütun işareti: kapsamda tek; listedeki görevlerin durumu da uyar. */
+  const setListDone = (id: string, isDone: boolean) =>
+    opt(
+      () => unwrap(api.setListDone({ id, isDone })),
+      (d) => {
+        const target = d.lists.find((l) => l.id === id);
+        if (!target) return d;
+        return {
+          ...d,
+          lists: d.lists.map((l) =>
+            l.id === id ? { ...l, isDone } : isDone && (l.projectId ?? null) === (target.projectId ?? null) ? { ...l, isDone: false } : l,
+          ),
+          tasks: d.tasks.map((t) => (t.listId === id ? { ...t, isCompleted: isDone } : t)),
+        };
+      },
     );
   const renameList = (id: string, title: string) =>
     opt(() => unwrap(api.renameList({ id, title })), (d) => ({ ...d, lists: merge(d.lists, id, { title }) }));
@@ -154,13 +184,13 @@ export function useDataActions() {
             assigneeId: null,
             listId: v.listId,
             noteId: v.noteId ?? null,
-            projectId: v.projectId ?? null,
+            projectId: d.lists.find((l) => l.id === v.listId)?.projectId ?? v.projectId ?? null,
             title: v.title,
             description: "",
             dueDate: null,
             priority: null,
             tags: [],
-            isCompleted: v.listId === lastList(d)?.id,
+            isCompleted: !!d.lists.find((l) => l.id === v.listId)?.isDone,
             position: v.position,
             createdAt: new Date(),
             archivedAt: null,
@@ -172,23 +202,40 @@ export function useDataActions() {
 
   const patchTask = (
     id: string,
-    p: Partial<Pick<Task, "title" | "description" | "dueDate" | "priority" | "tags" | "assigneeId" | "projectId">>,
+    p: Partial<Pick<Task, "title" | "description" | "dueDate" | "priority" | "tags" | "assigneeId" | "projectId" | "isCompleted">>,
   ) => opt(() => unwrap(api.updateTask({ id, ...p })), (d) => ({ ...d, tasks: merge(d.tasks, id, p) }));
 
   const moveTask = (id: string, listId: string, position: string) =>
     opt(
       () => unwrap(api.moveTask({ id, listId, position })),
-      (d) => ({
-        ...d,
-        tasks: merge(d.tasks, id, { listId, position, isCompleted: listId === lastList(d)?.id }).sort(byPos),
-      }),
+      (d) => {
+        const target = d.lists.find((l) => l.id === listId);
+        const cur = d.tasks.find((t) => t.id === id);
+        const source = cur?.listId ? d.lists.find((l) => l.id === cur.listId) : undefined;
+        const isCompleted = target?.isDone ? true : source?.isDone ? false : (cur?.isCompleted ?? false);
+        return {
+          ...d,
+          tasks: merge(d.tasks, id, { listId, position, isCompleted, ...(target?.projectId ? { projectId: target.projectId } : {}) }).sort(byPos),
+        };
+      },
     );
 
-  /** Tamamla = son listeye; geri al = ilk listeye (zaten son listede değilse yerinde kalır). */
+  /**
+   * Tamamla: panoda tamamlanan sütun varsa oraya taşır; yoksa yalnızca tamamlandı işaretler.
+   * Geri al: tamamlanan sütundaysa ilk sütuna döndürür; değilse yalnızca işareti kaldırır.
+   */
   const setDone = (d: Data, t: Task, done: boolean) => {
-    const target = done ? lastList(d) : t.listId === lastList(d)?.id ? firstList(d) : d.lists.find((l) => l.id === t.listId);
-    if (!target) return;
-    moveTask(t.id, target.id, endPosition(d, target.id, t.id));
+    const scope = listsFor(d, t.projectId);
+    const doneList = scope.find((l) => l.isDone);
+    if (done) {
+      if (doneList && t.listId !== doneList.id) moveTask(t.id, doneList.id, endPosition(d, doneList.id, t.id));
+      else patchTask(t.id, { isCompleted: true });
+    } else {
+      const inDone = doneList && t.listId === doneList.id;
+      const back = scope.find((l) => !l.isDone);
+      if (inDone && back) moveTask(t.id, back.id, endPosition(d, back.id, t.id));
+      else patchTask(t.id, { isCompleted: false });
+    }
   };
 
   /* ---------------------------- notlar ---------------------------- */
@@ -303,6 +350,7 @@ export function useDataActions() {
     endPosition,
     addList,
     renameList,
+    setListDone,
     addTask,
     patchTask,
     moveTask,

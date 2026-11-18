@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useIsDesktop } from "@/lib/hooks/use-desktop";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/db/schema";
-import { useDataActions, useWorkspaceData, type Data } from "@/lib/hooks/use-data";
+import { firstListFor, useDataActions, useWorkspaceData, type Data } from "@/lib/hooks/use-data";
 import { useUpload } from "@/lib/hooks/use-upload";
 import { newNote } from "@/lib/new-note";
 import { fmtDay, fmtStamp } from "@/lib/ui";
@@ -123,7 +123,7 @@ function Detail({ project: p, data, onBack }: { project: Project; data: Data; on
   const it = itemsOf(data, p.id);
   const open = it.tasks.filter((t) => !t.isCompleted).sort((x, y) => (x.dueDate?.getTime() ?? Infinity) - (y.dueDate?.getTime() ?? Infinity));
   const done = it.tasks.filter((t) => t.isCompleted);
-  const first = data.lists[0];
+  const first = firstListFor(data, p.id);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
