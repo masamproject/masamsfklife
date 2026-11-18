@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { CreditCard, LogOut } from "lucide-react";
+import { CreditCard, Download, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,12 +15,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { signOut } from "@/lib/auth-client";
+import { useInstall } from "@/lib/hooks/use-install";
 
 export function UserMenu() {
   const { id: workspaceId, user, plan, role } = useWorkspace();
   const router = useRouter();
   const qc = useQueryClient();
   const checkout = process.env.NEXT_PUBLIC_CHECKOUT_URL;
+  const { canInstall, install } = useInstall();
 
   return (
     <DropdownMenu>
@@ -57,6 +59,11 @@ export function UserMenu() {
           >
             <CreditCard className="mr-2 h-4 w-4" />
             {checkout ? "Pro'ya geç" : "Pro'ya geç (yakında)"}
+          </DropdownMenuItem>
+        )}
+        {canInstall && (
+          <DropdownMenuItem onClick={install}>
+            <Download className="mr-2 h-4 w-4" /> Uygulamayı yükle
           </DropdownMenuItem>
         )}
         <DropdownMenuItem
