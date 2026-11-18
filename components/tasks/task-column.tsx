@@ -53,9 +53,9 @@ export function TaskColumn({
   return (
     <section
       aria-label={list.title}
-      className="w-[280px] max-w-[calc(100vw-48px)] shrink-0 snap-start rounded-[10px] bg-muted p-2"
+      className="flex min-h-0 min-w-[260px] flex-1 basis-[260px] snap-start flex-col rounded-[10px] bg-muted p-2 max-md:w-[280px] max-md:flex-none"
     >
-      <div className="flex items-center gap-1.5 px-1 pb-2 pt-0.5">
+      <div className="flex shrink-0 items-center gap-1.5 px-1 pb-2 pt-0.5">
         <input
           ref={nameRef}
           value={name}
@@ -89,7 +89,7 @@ export function TaskColumn({
         )}
       </div>
 
-      <div ref={setNodeRef} className={cn("flex min-h-[44px] flex-col gap-2 rounded-lg p-0.5", isOver && "bg-primary-soft")}>
+      <div ref={setNodeRef} className={cn("flex min-h-[44px] flex-1 flex-col gap-2 overflow-y-auto rounded-lg p-0.5", isOver && "bg-primary-soft")}>
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((t) => (
             <SortableTask key={t.id} task={t} desktop={desktop} showProject={showProject} onToggle={() => onToggle(t)} />
@@ -99,7 +99,7 @@ export function TaskColumn({
 
       {composing ? (
         <form
-          className="mt-2 flex flex-col gap-1.5"
+          className="mt-2 flex shrink-0 flex-col gap-1.5"
           onSubmit={(e) => {
             e.preventDefault();
             const v = text.trim();
@@ -129,7 +129,7 @@ export function TaskColumn({
       ) : (
         <Button
           variant="ghost"
-          className="mt-1.5 w-full justify-start text-muted-foreground"
+          className="mt-1.5 w-full shrink-0 justify-start text-muted-foreground"
           onClick={() => setComposing(true)}
         >
           <Plus className="mr-1.5 h-3.5 w-3.5" /> Kart ekle

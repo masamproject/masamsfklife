@@ -28,7 +28,7 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="shrink-0 border-b md:sticky md:top-0 md:w-[200px] md:self-start md:border-b-0 md:pt-[18px]">
+    <aside className="shrink-0 border-b bg-card md:w-[200px] md:border-b-0 md:border-r md:px-2 md:pt-4">
       <nav aria-label="Bölümler" className="flex gap-1 overflow-x-auto px-3 py-2 md:flex-col md:gap-0.5 md:overflow-visible md:p-0">
         {items.map((it, i) =>
           "sep" in it ? (

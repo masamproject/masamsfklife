@@ -7,6 +7,7 @@ import { NoteTree, sectionOf, type Scope } from "@/components/notes/note-tree";
 import { matches, useFilter } from "@/components/providers/filter-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Note } from "@/db/schema";
 import { useIsDesktop } from "@/lib/hooks/use-desktop";
@@ -72,8 +73,8 @@ export function NotesView() {
   }
 
   return (
-    <div className="grid items-start gap-[18px] min-[1101px]:grid-cols-[300px_minmax(0,1fr)]">
-      <aside className={cn("flex flex-col gap-2.5 min-[1101px]:sticky min-[1101px]:top-[76px] min-[1101px]:max-h-[calc(100vh-100px)]", selected && "max-[1100px]:hidden")}>
+    <div className="grid min-h-0 flex-1 items-stretch gap-[18px] min-[1101px]:grid-cols-[300px_minmax(0,1fr)]">
+      <aside className={cn("flex min-h-0 flex-col gap-2.5 rounded-[10px] border bg-card p-3 min-[1101px]:sticky min-[1101px]:top-0 min-[1101px]:h-[calc(100dvh-8.5rem)]", selected && "max-[1100px]:hidden")}>
         <div className="flex flex-wrap gap-1.5">
           <Button onClick={() => create("meeting")}>+ Toplantı notu</Button>
           <Button variant="outline" onClick={() => create("free")}>
@@ -132,14 +133,13 @@ export function NotesView() {
         </div>
       </aside>
 
-      <div className={cn(!selected && "max-[1100px]:hidden")}>
+      <div className={cn("flex min-w-0 flex-col", !selected && "max-[1100px]:hidden")}>
         {selected ? (
           <NoteEditor key={selected.id} note={selected} data={data} autoFocusTitle={focusTitle === selected.id} onBack={() => open(null)} />
         ) : (
-          <div className="rounded-[10px] border bg-card p-7 text-center text-muted-foreground">
-            <strong className="mb-1 block text-base text-foreground">Bir not seç</strong>
+          <EmptyState title="Bir not seç" className="min-[1101px]:min-h-[calc(100dvh-8.5rem)]">
             Soldan bir not aç ya da yeni toplantı notu oluştur.
-          </div>
+          </EmptyState>
         )}
       </div>
     </div>

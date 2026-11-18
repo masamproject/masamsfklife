@@ -8,7 +8,10 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { TaskRow } from "@/components/tasks/task-row";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useIsDesktop } from "@/lib/hooks/use-desktop";
+import { cn } from "@/lib/utils";
 import type { Project } from "@/db/schema";
 import { useDataActions, useWorkspaceData, type Data } from "@/lib/hooks/use-data";
 import { useUpload } from "@/lib/hooks/use-upload";
@@ -39,66 +42,71 @@ export function ProjectsView() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
+  const wide = useIsDesktop(1101);
   const [name, setName] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
 
-  if (isLoading || !data) return <Skeleton className="h-40 w-full max-w-3xl" />;
+  if (isLoading || !data) return <Skeleton className="h-64 w-full" />;
 
   const projects = data.projects.filter((p) => !p.archivedAt);
+  const list = projects.filter((p) => matches(q, p.name, p.description));
   const id = params.get("id");
-  const current = id ? projects.find((p) => p.id === id) : undefined;
+  // Geniş ekranda seçili proje yoksa ilkini aç: sağ taraf asla boş kalmaz
+  const current = projects.find((p) => p.id === id) ?? (wide ? list[0] : undefined);
   const open = (pid: string | null) => router.replace(pid ? `${pathname}?id=${pid}` : pathname, { scroll: false });
 
-  if (current) return <Detail project={current} data={data} onBack={() => open(null)} />;
-
-  const list = projects.filter((p) => matches(q, p.name, p.description));
   return (
-    <div className="max-w-[980px]">
+    <div className="flex min-h-0 flex-1 flex-col">
       <h1 className="mb-3.5 text-xl font-semibold tracking-tight">Projeler</h1>
-      <form
-        className="mb-5 flex flex-wrap gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const v = name.trim();
-          if (!v) return;
-          a.addProject(crypto.randomUUID(), v);
-          setName("");
-          nameRef.current?.focus();
-        }}
-      >
-        <Input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Yeni proje adı, Enter'a bas" aria-label="Yeni proje adı" className="h-10 min-w-0 flex-[1_1_220px]" />
-        <Button type="submit" className="h-10">
-          Proje ekle
-        </Button>
-      </form>
-      {projects.length === 0 ? (
-        <div className="px-2 py-7 text-center text-muted-foreground">
-          <strong className="mb-1 block text-base text-foreground">Henüz proje yok</strong>
-          Bir proje oluştur. Sonra görev, toplantı notu ve dosyalarını o projeye bağlarsın.
+      <div className="grid min-h-0 flex-1 items-stretch gap-[18px] min-[1101px]:grid-cols-[300px_minmax(0,1fr)]">
+        <aside className={cn("flex min-h-0 flex-col gap-2.5 rounded-[10px] border bg-card p-3", current && "max-[1100px]:hidden")}>
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const v = name.trim();
+              if (!v) return;
+              const pid = crypto.randomUUID();
+              a.addProject(pid, v);
+              setName("");
+              open(pid);
+              nameRef.current?.focus();
+            }}
+          >
+            <Input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Yeni proje, Enter'a bas" aria-label="Yeni proje adı" className="min-w-0 flex-1" />
+            <Button type="submit">Ekle</Button>
+          </form>
+          <div className="flex min-h-[120px] flex-1 flex-col gap-1 overflow-y-auto">
+            {projects.length === 0 && <div className="px-2 py-7 text-center text-muted-foreground">Henüz proje yok.</div>}
+            {projects.length > 0 && list.length === 0 && <div className="px-2 py-7 text-center text-muted-foreground">Eşleşen proje yok.</div>}
+            {list.map((p) => {
+              const it = itemsOf(data, p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => open(p.id)}
+                  className={cn("block w-full rounded-lg border border-transparent px-[11px] py-[9px] text-left hover:bg-background", p.id === current?.id && "border-border bg-background shadow-sm")}
+                >
+                  <div className="font-medium [overflow-wrap:anywhere]">{p.name}</div>
+                  {p.description && <div className="line-clamp-1 text-[13px] text-muted-foreground">{p.description}</div>}
+                  <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                    {it.tasks.filter((t) => !t.isCompleted).length} açık görev · {it.notes.length} not · {it.files.length} dosya
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <div className={cn("flex min-h-0 min-w-0 flex-col", !current && "max-[1100px]:hidden")}>
+          {current ? (
+            <Detail key={current.id} project={current} data={data} onBack={() => open(null)} />
+          ) : (
+            <EmptyState title="Bir proje seç">Soldan bir proje aç ya da yeni bir proje oluştur. Sonra görev, toplantı notu ve dosyalarını o projeye bağlarsın.</EmptyState>
+          )}
         </div>
-      ) : list.length === 0 ? (
-        <div className="px-2 py-7 text-center text-muted-foreground">Eşleşen proje yok.</div>
-      ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
-          {list.map((p) => {
-            const it = itemsOf(data, p.id);
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => open(p.id)}
-                className="flex min-w-0 flex-col gap-1.5 rounded-[10px] border bg-card px-4 py-3.5 text-left hover:border-primary hover:shadow-md"
-              >
-                <span className="text-[15px] font-semibold [overflow-wrap:anywhere]">{p.name}</span>
-                <span className="line-clamp-2 min-h-[21px] text-muted-foreground">{p.description}</span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {it.tasks.filter((t) => !t.isCompleted).length} açık görev · {it.notes.length} not · {it.files.length} dosya
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -118,9 +126,9 @@ function Detail({ project: p, data, onBack }: { project: Project; data: Data; on
   const first = data.lists[0];
 
   return (
-    <div className="max-w-[980px]">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-3.5 flex flex-wrap items-center gap-3">
-        <Button variant="outline" size="sm" onClick={onBack}>
+        <Button variant="outline" size="sm" className="min-[1101px]:hidden" onClick={onBack}>
           ← Projeler
         </Button>
         <input
@@ -144,10 +152,11 @@ function Detail({ project: p, data, onBack }: { project: Project; data: Data; on
         placeholder="Proje açıklaması, hedef, notlar…"
         onChange={(e) => setDesc(e.target.value)}
         onBlur={() => desc !== p.description && a.patchProject(p.id, { description: desc })}
-        className="mb-[22px] min-h-16 w-full resize-y rounded-md border bg-card px-2.5 py-2 leading-relaxed"
+        className="mb-5 min-h-16 w-full resize-y rounded-md border bg-card px-2.5 py-2 leading-relaxed"
       />
 
-      <section className="mb-[22px]">
+      <div className="grid min-h-0 flex-1 items-stretch gap-5 xl:grid-cols-3">
+      <section className="flex min-w-0 flex-col">
         <SectionHead title="Görevler" extra={`${open.length} açık`} />
         <form
           className="mb-2.5 flex flex-wrap gap-2"
@@ -162,18 +171,16 @@ function Detail({ project: p, data, onBack }: { project: Project; data: Data; on
           <Input value={task} onChange={(e) => setTask(e.target.value)} placeholder="Bu projeye görev ekle, Enter'a bas" aria-label="Yeni görev" className="min-w-0 flex-[1_1_220px]" />
           <Button type="submit">Ekle</Button>
         </form>
-        {it.tasks.length ? (
-          <div className="rounded-lg border bg-card">
-            {[...open, ...done].map((t) => (
-              <TaskRow key={t.id} task={t} data={data} inProject />
-            ))}
-          </div>
-        ) : (
-          <div className="text-muted-foreground">Bu projede görev yok.</div>
-        )}
+        <div className="flex-1 rounded-lg border bg-card">
+          {it.tasks.length ? (
+            [...open, ...done].map((t) => <TaskRow key={t.id} task={t} data={data} inProject />)
+          ) : (
+            <div className="p-4 text-muted-foreground">Bu projede görev yok.</div>
+          )}
+        </div>
       </section>
 
-      <section className="mb-[22px]">
+      <section className="flex min-w-0 flex-col">
         <SectionHead title="Notlar ve toplantılar">
           {(["meeting", "free"] as const).map((k) => (
             <Button
@@ -190,8 +197,9 @@ function Detail({ project: p, data, onBack }: { project: Project; data: Data; on
             </Button>
           ))}
         </SectionHead>
-        {it.notes.length ? (
-          <div className="rounded-lg border bg-card">
+        <div className="flex-1 rounded-lg border bg-card">
+          {it.notes.length ? (
+            <>
             {[...it.notes]
               .sort((x, y) => y.updatedAt.getTime() - x.updatedAt.getTime())
               .map((n) => (
@@ -202,13 +210,14 @@ function Detail({ project: p, data, onBack }: { project: Project; data: Data; on
                   </div>
                 </button>
               ))}
-          </div>
-        ) : (
-          <div className="text-muted-foreground">Bu projede not yok.</div>
-        )}
+            </>
+          ) : (
+            <div className="p-4 text-muted-foreground">Bu projede not yok.</div>
+          )}
+        </div>
       </section>
 
-      <section>
+      <section className="flex min-w-0 flex-col">
         <SectionHead title="Dosyalar">
           <Button variant="outline" size="sm" onClick={() => fileInput.current?.click()}>
             + Dosya yükle
@@ -225,16 +234,15 @@ function Detail({ project: p, data, onBack }: { project: Project; data: Data; on
             }}
           />
         </SectionHead>
-        {it.files.length ? (
-          <div className="rounded-lg border bg-card">
-            {it.files.map((f) => (
-              <FileRow key={f.id} file={f} data={data} inProject />
-            ))}
-          </div>
-        ) : (
-          <div className="text-muted-foreground">Bu projede dosya yok.</div>
-        )}
+        <div className="flex-1 rounded-lg border bg-card">
+          {it.files.length ? (
+            it.files.map((f) => <FileRow key={f.id} file={f} data={data} inProject />)
+          ) : (
+            <div className="p-4 text-muted-foreground">Bu projede dosya yok.</div>
+          )}
+        </div>
       </section>
+      </div>
     </div>
   );
 }

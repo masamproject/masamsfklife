@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,16 +44,7 @@ export function NoteEditor({ note, data, onBack, autoFocusTitle }: { note: Note;
   const [tags, setTags] = useState(note.tags.join(", "));
   const [actions, setActions] = useState<NoteAction[]>(note.actions);
   const [newAction, setNewAction] = useState("");
-  const body = useRef<HTMLTextAreaElement>(null);
   const isMeeting = kind === "meeting";
-
-  const fit = () => {
-    const t = body.current;
-    if (!t) return;
-    t.style.height = "auto";
-    t.style.height = `${Math.max(t.scrollHeight, 260)}px`;
-  };
-  useEffect(fit, [content, kind]);
 
   const saveActions = (next: NoteAction[]) => {
     setActions(next);
@@ -83,7 +74,7 @@ export function NoteEditor({ note, data, onBack, autoFocusTitle }: { note: Note;
   const projects = data.projects.filter((p) => !p.archivedAt);
 
   return (
-    <div className="min-w-0 rounded-[10px] border bg-card p-3.5 min-[1101px]:px-5 min-[1101px]:py-[18px]">
+    <div className="flex min-h-[calc(100dvh-8.5rem)] min-w-0 flex-1 flex-col rounded-[10px] border bg-card p-3.5 min-[1101px]:px-5 min-[1101px]:py-[18px]">
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" className="min-[1101px]:hidden" onClick={() => (saver.flush(), onBack())}>
           ← Notlar
@@ -135,7 +126,6 @@ export function NoteEditor({ note, data, onBack, autoFocusTitle }: { note: Note;
       )}
 
       <textarea
-        ref={body}
         id="n-body"
         value={content}
         aria-label="Not metni"
@@ -144,7 +134,7 @@ export function NoteEditor({ note, data, onBack, autoFocusTitle }: { note: Note;
           setContent(e.target.value);
           saver.set({ content: e.target.value });
         }}
-        className="min-h-[260px] w-full resize-none overflow-hidden bg-transparent py-1.5 text-[15px] leading-[1.65] outline-none"
+        className="min-h-[260px] w-full flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-[1.65] outline-none"
       />
 
       {isMeeting && (

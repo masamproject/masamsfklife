@@ -57,9 +57,9 @@ export function TaskBoard() {
 
   if (isLoading || !data) {
     return (
-      <div className="flex gap-3">
+      <div className="flex min-h-0 flex-1 gap-3.5">
         {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-64 w-[280px] shrink-0 rounded-xl" />
+          <Skeleton key={i} className="h-full min-w-[260px] flex-1 rounded-xl" />
         ))}
       </div>
     );
@@ -126,7 +126,7 @@ export function TaskBoard() {
       onDragEnd={onDragEnd}
       onDragCancel={() => setActive(null)}
     >
-      <div className="flex snap-x items-start gap-3.5 overflow-x-auto pb-3.5">
+      <div className="flex min-h-0 flex-1 snap-x items-stretch gap-3.5 overflow-x-auto pb-1">
         {lists.map((l) => {
           const tasks = byList(l.id);
           const emptyCol = live.every((t) => t.listId !== l.id) && !q && !pf;
@@ -160,7 +160,7 @@ export function TaskBoard() {
           );
         })}
 
-        <div className="w-60 shrink-0">
+        <div className="w-44 shrink-0">
           {limitReached ? (
             <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
               Free planda en fazla {PLAN_LIMITS.free.lists} liste olabilir. Daha fazlası için Pro&apos;ya geç.

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { FileRow } from "@/components/files/file-row";
 import { matches, useFilter } from "@/components/providers/filter-provider";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspaceData } from "@/lib/hooks/use-data";
 import { useUpload } from "@/lib/hooks/use-upload";
@@ -16,12 +17,12 @@ export function FilesView() {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
 
-  if (isLoading || !data) return <Skeleton className="h-40 w-full max-w-3xl" />;
+  if (isLoading || !data) return <Skeleton className="h-64 w-full" />;
   const all = data.files.filter((f) => !f.archivedAt);
   const vis = all.filter((f) => (!pf || f.projectId === pf) && matches(q, f.name));
 
   return (
-    <div className="max-w-[760px]">
+    <div className="flex min-h-0 flex-1 flex-col">
       <h1 className="mb-3.5 text-xl font-semibold tracking-tight">Dosyalar</h1>
       <div
         onDragOver={(e) => {
@@ -59,14 +60,11 @@ export function FilesView() {
         Görsel (PNG, JPG, GIF, WebP, SVG), PDF, video (MP4, WebM) ve metin (TXT, MD, CSV, JSON) yüklenir. Dosya başına en fazla 5 MB. Word, Excel, PowerPoint ve zip şimdilik yüklenemez.
       </p>
       {all.length === 0 ? (
-        <div className="px-2 py-7 text-center text-muted-foreground">
-          <strong className="mb-1 block text-base text-foreground">Henüz dosya yok</strong>
-          Yüklediğin dosyalar burada listelenir, istersen bir projeye bağlarsın.
-        </div>
+        <EmptyState title="Henüz dosya yok">Yüklediğin dosyalar burada listelenir, istersen bir projeye bağlarsın.</EmptyState>
       ) : vis.length === 0 ? (
-        <div className="px-2 py-7 text-center text-muted-foreground">Eşleşen dosya yok.</div>
+        <EmptyState title="Eşleşen dosya yok" />
       ) : (
-        <div className="rounded-lg border bg-card">
+        <div className="flex-1 rounded-lg border bg-card">
           {vis.map((f) => (
             <FileRow key={f.id} file={f} data={data} inProject={false} />
           ))}

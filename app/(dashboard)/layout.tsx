@@ -35,11 +35,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
       }}
     >
       <FilterProvider>
-        <div className="min-h-screen bg-background">
+        <div className="flex h-[100dvh] flex-col bg-background">
           <Topbar />
-          <div className="md:flex md:gap-7 md:px-4">
+          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
             <Sidebar />
-            <main className="min-w-0 flex-1 px-3 pb-20 pt-4 md:px-0">{children}</main>
+            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-3 pb-6 md:p-5">{children}</main>
           </div>
         </div>
         <Suspense>
