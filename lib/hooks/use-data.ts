@@ -2,7 +2,7 @@
 
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
-import { generateKeyBetween } from "fractional-indexing";
+import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing";
 import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import type {
@@ -290,6 +290,19 @@ export function useDataActions() {
         projects: [...d.projects, { id, workspaceId: ws.id, name, description: "", createdAt: new Date(), archivedAt: null, deletedAt: null }].sort(
           (a, b) => a.name.localeCompare(b.name, "tr"),
         ),
+        lists: [
+          ...d.lists,
+          ...(["Yapılacak", "Sürüyor", "Bitti"] as const).map((title, i, arr) => ({
+            id: `${id}-d${i}`,
+            workspaceId: ws.id,
+            title,
+            position: generateNKeysBetween(null, null, arr.length)[i],
+            projectId: id,
+            isDone: i === arr.length - 1,
+            createdAt: new Date(),
+            deletedAt: null,
+          })),
+        ].sort(byPos),
       }),
     );
   const patchProject = (id: string, p: { name?: string; description?: string }) =>

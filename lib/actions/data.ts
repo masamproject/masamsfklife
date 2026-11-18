@@ -309,6 +309,21 @@ export const updateNote = workspaceAction(
 /* ------------------------------------------------------------------ */
 export const createProject = workspaceAction(z.object({ id, name }), async (d, ctx) => {
   await db.insert(projects).values({ id: d.id, workspaceId: ctx.workspaceId, name: d.name });
+  // Her proje kendi bağımsız listeleriyle başlar (ortak listeler paylaşılmaz)
+  const keys = generateNKeysBetween(null, null, DEFAULT_LISTS.length);
+  await db
+    .insert(lists)
+    .values(
+      DEFAULT_LISTS.map((title, i) => ({
+        id: `${d.id}-d${i}`,
+        workspaceId: ctx.workspaceId,
+        title,
+        projectId: d.id,
+        position: keys[i],
+        isDone: i === DEFAULT_LISTS.length - 1,
+      })),
+    )
+    .onConflictDoNothing();
 });
 
 export const updateProject = workspaceAction(
