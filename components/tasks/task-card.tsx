@@ -16,8 +16,9 @@ export function TaskMeta({ task, showProject }: { task: Task; showProject: boole
   const { data } = useWorkspaceData();
   const project = task.projectId ? data?.projects.find((p) => p.id === task.projectId) : undefined;
   const note = task.noteId ? data?.notes.find((n) => n.id === task.noteId) : undefined;
+  const people = (data?.people ?? []).filter((p) => task.personIds.includes(p.id));
   const due = task.dueDate ? dueState(task.dueDate, task.isCompleted) : "none";
-  const has = (showProject && project) || task.dueDate || task.priority || task.tags.length || note;
+  const has = (showProject && project) || task.dueDate || task.priority || people.length || note;
   if (!has) return null;
   return (
     <div className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1">
@@ -26,9 +27,9 @@ export function TaskMeta({ task, showProject }: { task: Task; showProject: boole
         <Pill tone={due === "overdue" ? "late" : due === "today" ? "today" : "default"}>{fmtDue(task.dueDate)}</Pill>
       )}
       {task.priority && <Pill tone={PRI_TONE[task.priority]}>{PRIORITY_LABEL[task.priority]}</Pill>}
-      {task.tags.slice(0, 3).map((t) => (
-        <Pill key={t} tone="tag">
-          {t}
+      {people.slice(0, 3).map((p) => (
+        <Pill key={p.id} tone="tag">
+          {p.name}
         </Pill>
       ))}
       {note && <Pill tone="link">Nota bağlı</Pill>}

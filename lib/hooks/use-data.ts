@@ -19,6 +19,7 @@ import * as api from "@/lib/actions/data";
 import { unwrap } from "@/lib/actions/unwrap";
 
 export type Member = { id: string; name: string; email: string; image: string | null };
+export type Person = { id: string; name: string };
 export type Data = {
   lists: List[];
   tasks: Task[];
@@ -28,10 +29,11 @@ export type Data = {
   sections: Section[];
   files: FileRow[];
   members: Member[];
+  people: Person[];
 };
 export type Kind = "task" | "note" | "project" | "file" | "list" | "notebook" | "section";
 
-const COLL: Record<Kind, keyof Omit<Data, "members">> = {
+const COLL: Record<Kind, keyof Omit<Data, "members" | "people">> = {
   task: "tasks",
   note: "notes",
   project: "projects",
@@ -190,6 +192,7 @@ export function useDataActions() {
             dueDate: null,
             priority: null,
             tags: [],
+            personIds: [],
             isCompleted: !!d.lists.find((l) => l.id === v.listId)?.isDone,
             position: v.position,
             createdAt: new Date(),
@@ -202,8 +205,30 @@ export function useDataActions() {
 
   const patchTask = (
     id: string,
-    p: Partial<Pick<Task, "title" | "description" | "dueDate" | "priority" | "tags" | "assigneeId" | "projectId" | "isCompleted">>,
+    p: Partial<Pick<Task, "title" | "description" | "dueDate" | "priority" | "tags" | "personIds" | "assigneeId" | "projectId" | "isCompleted">>,
   ) => opt(() => unwrap(api.updateTask({ id, ...p })), (d) => ({ ...d, tasks: merge(d.tasks, id, p) }));
+
+  /** Dönüşü beklenen kişi ekle (aynı isim varsa var olanı döndürür). */
+  const addPerson = (name: string, data: Data): string => {
+    const n = name.trim();
+    const hit = data.people.find((p) => p.name.toLocaleLowerCase("tr") === n.toLocaleLowerCase("tr"));
+    if (hit) return hit.id;
+    const id = crypto.randomUUID();
+    opt(
+      () => unwrap(api.createPerson({ id, name: n })),
+      (d) => ({ ...d, people: [...d.people, { id, name: n }].sort((a, b) => a.name.localeCompare(b.name, "tr")) }),
+    );
+    return id;
+  };
+  const removePerson = (id: string) =>
+    opt(
+      () => unwrap(api.deletePerson({ id })),
+      (d) => ({
+        ...d,
+        people: d.people.filter((p) => p.id !== id),
+        tasks: d.tasks.map((t) => (t.personIds.includes(id) ? { ...t, personIds: t.personIds.filter((x) => x !== id) } : t)),
+      }),
+    );
 
   const moveTask = (id: string, listId: string, position: string) =>
     opt(
@@ -366,6 +391,8 @@ export function useDataActions() {
     setListDone,
     addTask,
     patchTask,
+    addPerson,
+    removePerson,
     moveTask,
     setDone,
     addNote,

@@ -47,9 +47,9 @@ export function TaskBoard() {
   const live = useMemo(() => (data?.tasks ?? []).filter((t) => !t.archivedAt), [data?.tasks]);
   const projectOk = (t: Task) => !pf || t.projectId === pf;
   const visible = useMemo(
-    () => live.filter((t) => projectOk(t) && matches(q, t.title, t.description, t.tags)),
+    () => live.filter((t) => projectOk(t) && matches(q, t.title, t.description, (data?.people ?? []).filter((p) => t.personIds.includes(p.id)).map((p) => p.name))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [live, q, pf],
+    [live, q, pf, data?.people],
   );
 
   if (isLoading || !data) {

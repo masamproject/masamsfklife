@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { generateNKeysBetween } from "fractional-indexing";
 import { z } from "zod";
 import { db } from "@/db";
@@ -9,6 +9,7 @@ import {
   lists,
   notebooks,
   notes,
+  people,
   projects,
   sections,
   tasks,
@@ -98,7 +99,7 @@ async function assertMember(workspaceId: string, userId: string) {
 export const getWorkspaceData = workspaceAction(z.void(), async (_, ctx) => {
   const w = ctx.workspaceId;
   await ensureDefaultLists(w);
-  const [l, t, n, p, nb, sec, f, m] = await Promise.all([
+  const [l, t, n, p, nb, sec, f, m, pe] = await Promise.all([
     db.select().from(lists).where(and(eq(lists.workspaceId, w), isNull(lists.deletedAt))).orderBy(asc(bytes(lists.position))),
     db.select().from(tasks).where(and(eq(tasks.workspaceId, w), isNull(tasks.deletedAt))).orderBy(asc(bytes(tasks.position))),
     db.select().from(notes).where(and(eq(notes.workspaceId, w), isNull(notes.deletedAt))).orderBy(desc(notes.updatedAt)).limit(1000),
@@ -111,8 +112,9 @@ export const getWorkspaceData = workspaceAction(z.void(), async (_, ctx) => {
       .from(workspaceMembers)
       .innerJoin(user, eq(user.id, workspaceMembers.userId))
       .where(eq(workspaceMembers.workspaceId, w)),
+    db.select({ id: people.id, name: people.name }).from(people).where(eq(people.workspaceId, w)).orderBy(asc(people.name)),
   ]);
-  return { lists: l, tasks: t, notes: n, projects: p, notebooks: nb, sections: sec, files: f, members: m };
+  return { lists: l, tasks: t, notes: n, projects: p, notebooks: nb, sections: sec, files: f, members: m, people: pe };
 });
 
 export const getTrash = workspaceAction(z.void(), async (_, ctx) => {
@@ -212,10 +214,18 @@ export const updateTask = workspaceAction(
     priority: priority.nullable().optional(),
     tags: z.array(z.string().trim().min(1).max(30)).max(20).optional(),
     assigneeId: id.nullable().optional(),
+    personIds: z.array(id).max(20).optional(),
     projectId: id.nullable().optional(),
     isCompleted: z.boolean().optional(),
   }),
   async ({ id: taskId, ...patch }, ctx) => {
+    if (patch.personIds?.length) {
+      const found = await db
+        .select({ id: people.id })
+        .from(people)
+        .where(and(eq(people.workspaceId, ctx.workspaceId), inArray(people.id, patch.personIds)));
+      if (found.length !== new Set(patch.personIds).size) throw new ActionError("Kişi bulunamadı.");
+    }
     if (patch.assigneeId) await assertMember(ctx.workspaceId, patch.assigneeId);
     if (patch.projectId) await assertProject(ctx.workspaceId, patch.projectId);
     const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
@@ -307,6 +317,19 @@ export const updateNote = workspaceAction(
 /* ------------------------------------------------------------------ */
 /* Projeler, defterler, bölümler                                       */
 /* ------------------------------------------------------------------ */
+/* Dönüş beklenen kişiler (serbest isim) */
+export const createPerson = workspaceAction(z.object({ id, name: z.string().trim().min(1).max(60) }), async (d, ctx) => {
+  await db.insert(people).values({ id: d.id, workspaceId: ctx.workspaceId, name: d.name }).onConflictDoNothing();
+});
+
+export const deletePerson = workspaceAction(z.object({ id }), async (d, ctx) => {
+  await db
+    .update(tasks)
+    .set({ personIds: sql`array_remove(${tasks.personIds}, ${d.id})` })
+    .where(and(eq(tasks.workspaceId, ctx.workspaceId), sql`${d.id} = ANY(${tasks.personIds})`));
+  await db.delete(people).where(and(eq(people.id, d.id), eq(people.workspaceId, ctx.workspaceId)));
+});
+
 export const createProject = workspaceAction(z.object({ id, name }), async (d, ctx) => {
   await db.insert(projects).values({ id: d.id, workspaceId: ctx.workspaceId, name: d.name });
   // Her proje kendi bağımsız listeleriyle başlar (ortak listeler paylaşılmaz)

@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Task } from "@/db/schema";
 import { listsFor, useDataActions, useWorkspaceData, type Data } from "@/lib/hooks/use-data";
 import { useSaver } from "@/lib/hooks/use-saver";
-import { fromDateInput, parseTags, PRIORITY_LABEL, toDateInput } from "@/lib/ui";
+import { fromDateInput, PRIORITY_LABEL, toDateInput } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
 /** ?card=<id> ile açılan görev penceresi; sayfadan ayrılmadan her görünümde açılır. */
@@ -46,12 +46,75 @@ function Field({ label, htmlFor, children }: { label: string; htmlFor: string; c
   );
 }
 
+/** Dönüşü beklenen kişiler: seçili olanlar çip; yeni isim yazıp Enter ile eklenir, mevcut isimler tek tıkla seçilir. */
+function PeopleField({ task, data }: { task: Task; data: Data }) {
+  const a = useDataActions();
+  const [text, setText] = useState("");
+  const chosen = data.people.filter((p) => task.personIds.includes(p.id));
+  const rest = data.people.filter((p) => !task.personIds.includes(p.id));
+  const set = (ids: string[]) => a.patchTask(task.id, { personIds: ids });
+  const add = () => {
+    const n = text.trim();
+    if (!n) return;
+    const pid = a.addPerson(n, data);
+    if (!task.personIds.includes(pid)) set([...task.personIds, pid]);
+    setText("");
+  };
+  return (
+    <div className="col-span-full flex min-w-0 flex-col gap-1.5">
+      <Label htmlFor="m-people" className="font-mono text-[12px] font-medium uppercase tracking-wider text-muted-foreground">
+        Dönüş bekleniyor
+      </Label>
+      {chosen.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {chosen.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              title="Kaldır"
+              onClick={() => set(task.personIds.filter((x) => x !== p.id))}
+              className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-medium text-primary hover:line-through"
+            >
+              {p.name} ✕
+            </button>
+          ))}
+        </div>
+      )}
+      <Input
+        id="m-people"
+        value={text}
+        placeholder="İsim yaz, Enter ile ekle"
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            add();
+          }
+        }}
+      />
+      {rest.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {rest.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => set([...task.personIds, p.id])}
+              className="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground hover:bg-primary-soft hover:text-primary"
+            >
+              + {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Body({ task, data, onClose }: { task: Task; data: Data; onClose: () => void }) {
   const a = useDataActions();
   const [title, setTitle] = useState(task.title);
   const [desc, setDesc] = useState(task.description);
-  const [tags, setTags] = useState(task.tags.join(", "));
-  const saver = useSaver<Pick<Task, "title" | "description" | "tags">>((p) => a.patchTask(task.id, p));
+  const saver = useSaver<Pick<Task, "title" | "description">>((p) => a.patchTask(task.id, p));
 
   // Geri al / rollback gibi dış değişikliklerde yerel taslağı eşitle
   useEffect(() => setTitle(task.title), [task.title]);
@@ -168,17 +231,7 @@ function Body({ task, data, onClose }: { task: Task; data: Data; onClose: () => 
             ))}
           </NativeSelect>
         </Field>
-        <Field label="Etiketler" htmlFor="m-tags">
-          <Input
-            id="m-tags"
-            value={tags}
-            placeholder="iş, evrak, ev"
-            onChange={(e) => {
-              setTags(e.target.value);
-              saver.set({ tags: parseTags(e.target.value) });
-            }}
-          />
-        </Field>
+        <PeopleField task={task} data={data} />
       </div>
 
       {note && (

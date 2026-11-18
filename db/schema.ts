@@ -273,6 +273,20 @@ export const notes = pgTable(
   ],
 );
 
+// "Dönüş bekleniyor": görevde yanıtı/dönüşü beklenen kişiler (üye olmak gerekmez, serbest isim)
+export const people = pgTable(
+  "people",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("people_ws_name_uq").on(t.workspaceId, t.name)],
+);
+
 export const tasks = pgTable(
   "tasks",
   {
@@ -293,6 +307,8 @@ export const tasks = pgTable(
     dueDate: timestamp("due_date"),
     priority: priorityEnum("priority"), // null = öncelik yok
     tags: text("tags").array().notNull().default([]),
+    // Dönüşü beklenen kişiler (people.id listesi)
+    personIds: text("person_ids").array().notNull().default([]),
     isCompleted: boolean("is_completed").notNull().default(false),
     projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
     position: text("position").notNull(), // fractional index

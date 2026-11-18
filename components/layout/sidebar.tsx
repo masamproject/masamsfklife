@@ -70,6 +70,17 @@ export function Sidebar() {
   const mineGroups = Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name, "tr"));
   const mineCount = mineGroups.reduce((n, g) => n + g.tasks.length, 0);
 
+  // Dönüş bekleniyor: bitmemiş görevler, beklenen kişiye göre gruplu
+  const waiting = (data?.people ?? [])
+    .map((p) => ({
+      person: p,
+      tasks: (data?.tasks ?? []).filter(
+        (t) => t.personIds.includes(p.id) && !t.isCompleted && !t.archivedAt && !t.deletedAt && (!t.projectId || data?.projects.some((x) => x.id === t.projectId && !x.deletedAt && !x.archivedAt)),
+      ),
+    }))
+    .filter((g) => g.tasks.length > 0);
+  const waitingCount = waiting.reduce((n, g) => n + g.tasks.length, 0);
+
   const items = [
     { href: "/projeler", label: "Projeler", icon: Folder, n: live(data?.projects).length },
     { href: "/toplanti", label: "Notlarım", icon: FileText, n: live(data?.notes).length },
@@ -143,6 +154,32 @@ export function Sidebar() {
               ))
             )}
           </div>
+        )}
+        {!rail && waiting.length > 0 && (
+          <>
+            <div className="mb-1 mt-1 hidden whitespace-nowrap px-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 md:block">
+              Dönüş Bekleniyor<span className="ml-1.5 font-mono normal-case">{waitingCount}</span>
+            </div>
+            <div className="mb-2 hidden max-h-[30%] min-h-0 shrink-0 overflow-y-auto px-1 md:block">
+              {waiting.map((g) => (
+                <div key={g.person.id} className="mb-1.5">
+                  <div className="truncate px-3 pb-0.5 text-[11px] font-medium text-muted-foreground">{g.person.name}</div>
+                  {g.tasks.map((t) => (
+                    <Link
+                      key={t.id}
+                      href={`${pathname}?card=${t.id}`}
+                      scroll={false}
+                      title={t.title}
+                      className="flex items-center gap-2 rounded-md px-3 py-1 text-xs text-foreground hover:bg-muted"
+                    >
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                      <span className="truncate">{t.title}</span>
+                    </Link>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
         )}
         <nav aria-label="Bölümler" className="flex gap-1 overflow-x-auto px-3 py-2 md:flex-1 md:flex-col md:gap-0.5 md:overflow-visible md:p-0">
           {items.map((it, i) =>
