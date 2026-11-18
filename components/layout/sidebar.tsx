@@ -215,6 +215,36 @@ export function Sidebar() {
           )}
         </nav>
       </div>
+      {/* Mobil: "Ben" ve "Dönüş Bekleniyor" listeleri açılır bölümler olarak menünün altında */}
+      <div className="border-t md:hidden">
+        {[
+          { title: "Ben", count: mineCount, groups: mineGroups.map((g) => ({ key: g.name, name: g.name, tasks: g.tasks })), empty: "Sana atanmış açık görev yok." },
+          { title: "Dönüş Bekleniyor", count: waitingCount, groups: waiting.map((g) => ({ key: g.person.id, name: g.person.name, tasks: g.tasks })), empty: "" },
+        ]
+          .filter((sec) => sec.groups.length > 0 || sec.empty)
+          .map((sec) => (
+            <details key={sec.title} className="group border-b last:border-b-0">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-sm font-semibold">
+                <span>{sec.title}</span>
+                <span className="font-mono text-xs text-muted-foreground">{sec.count}</span>
+              </summary>
+              <div className="max-h-[40vh] overflow-y-auto px-2 pb-2">
+                {sec.groups.length === 0 && <p className="px-2 py-1 text-xs text-muted-foreground">{sec.empty}</p>}
+                {sec.groups.map((g) => (
+                  <div key={g.key} className="mb-1.5">
+                    <div className="truncate px-2 pb-0.5 text-[11px] font-medium text-muted-foreground">{g.name}</div>
+                    {g.tasks.map((t) => (
+                      <Link key={t.id} href={`${pathname}?card=${t.id}`} scroll={false} className="flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                        <span className="truncate">{t.title}</span>
+                      </Link>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </details>
+          ))}
+      </div>
     </aside>
   );
 }
