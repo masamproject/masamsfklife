@@ -24,15 +24,15 @@ export function Sidebar() {
     { href: "/dosyalar", label: "Dosyalar", icon: Paperclip, n: live(data?.files).length },
     { sep: true as const },
     { href: "/arsiv", label: "Arşiv", icon: Archive, n: archived },
-    { href: "/cop", label: "Çöp", icon: Trash2, n: undefined },
+    { href: "/cop", label: "Çöp Kutusu", icon: Trash2, n: undefined },
   ];
 
   return (
-    <aside className="shrink-0 border-b bg-card md:w-[200px] md:border-b-0 md:border-r md:px-2 md:pt-4">
-      <nav aria-label="Bölümler" className="flex gap-1 overflow-x-auto px-3 py-2 md:flex-col md:gap-0.5 md:overflow-visible md:p-0">
+    <aside className="shrink-0 border-b bg-card md:flex md:w-[200px] md:flex-col md:border-b-0 md:border-r md:px-2 md:pb-3 md:pt-4">
+      <nav aria-label="Bölümler" className="flex gap-1 overflow-x-auto px-3 py-2 md:flex-1 md:flex-col md:gap-0.5 md:overflow-visible md:p-0">
         {items.map((it, i) =>
           "sep" in it ? (
-            <span key={i} className="mx-1.5 my-2 hidden h-px bg-border md:block" />
+            <span key={i} className="mx-1.5 mb-1.5 mt-auto hidden h-px bg-border md:block" />
           ) : (
             <Link
               key={it.href}

@@ -51,12 +51,12 @@ export function TrashView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-3.5 flex items-center gap-3">
-        <h1 className="flex-1 text-xl font-semibold tracking-tight">Çöp</h1>
+        <h1 className="flex-1 text-xl font-semibold tracking-tight">Çöp Kutusu</h1>
         {total > 0 && canPurge && <ConfirmButton label="Çöpü boşalt" onConfirm={() => empty.mutate()} />}
       </div>
 
       {total === 0 && (
-        <EmptyState title="Çöp boş">Sildiğin görev, not, proje ve dosyalar burada durur, istersen geri alırsın.</EmptyState>
+        <EmptyState title="Çöp kutusu boş">Sildiğin görev, not, proje ve dosyalar burada durur, istersen geri alırsın.</EmptyState>
       )}
       {total > 0 && (
         <div className="grid flex-1 content-start gap-x-6 rounded-lg border bg-card p-4 xl:grid-cols-2">

@@ -149,7 +149,7 @@ export function TaskBoard() {
               projectLabel={!pf && l.projectId ? projectName(l.projectId) : ""}
               canDelete={emptyCol && lists.length > 1}
               desktop={desktop}
-              showProject={!pf}
+              showProject={!pf && !l.projectId}
               autoFocusName={focusList === l.id}
               onRename={(title) => a.renameList(l.id, title)}
               onToggleDone={() => a.setListDone(l.id, !l.isDone)}

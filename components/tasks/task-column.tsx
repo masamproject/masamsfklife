@@ -105,7 +105,7 @@ export function TaskColumn({
       </div>
 
       {projectLabel && (
-        <div className="-mt-1.5 truncate px-2 pb-1.5 font-mono text-[10px] font-medium uppercase tracking-wider text-primary" title={projectLabel}>
+        <div className="-mt-1.5 truncate px-2 pb-1.5 font-mono text-[10px] font-medium tracking-wide text-primary" title={projectLabel}>
           {projectLabel}
         </div>
       )}
