@@ -132,7 +132,7 @@ export function TaskBoard() {
       onDragEnd={onDragEnd}
       onDragCancel={() => setActive(null)}
     >
-      <div className="flex min-h-0 flex-1 snap-x items-stretch gap-3.5 overflow-x-auto pb-1">
+      <div className="flex min-h-0 flex-1 snap-x items-start gap-3 overflow-x-auto pb-1">
         {lists.map((l) => {
           const tasks = byList(l.id);
           const emptyCol = live.every((t) => t.listId !== l.id) && !q && !pf;
@@ -168,7 +168,7 @@ export function TaskBoard() {
           );
         })}
 
-        <div className="w-44 shrink-0">
+        <div className="w-[272px] shrink-0">
           <Button variant="outline" onClick={addList}>
               <Plus className="mr-1.5 h-3.5 w-3.5" /> Liste ekle
             </Button>

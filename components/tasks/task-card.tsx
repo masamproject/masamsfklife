@@ -20,7 +20,7 @@ export function TaskMeta({ task, showProject }: { task: Task; showProject: boole
   const has = (showProject && project) || task.dueDate || task.priority || task.tags.length || note;
   if (!has) return null;
   return (
-    <div className="mt-1.5 flex flex-wrap gap-x-1.5 gap-y-1">
+    <div className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1">
       {showProject && project && <Pill tone="proj">{project.name}</Pill>}
       {task.dueDate && (
         <Pill tone={due === "overdue" ? "late" : due === "today" ? "today" : "default"}>{fmtDue(task.dueDate)}</Pill>
@@ -36,7 +36,7 @@ export function TaskMeta({ task, showProject }: { task: Task; showProject: boole
   );
 }
 
-export function CheckCircle({ done, onToggle }: { done: boolean; onToggle: () => void }) {
+export function CheckCircle({ done, onToggle, hoverOnly = false }: { done: boolean; onToggle: () => void; hoverOnly?: boolean }) {
   return (
     <button
       type="button"
@@ -50,6 +50,11 @@ export function CheckCircle({ done, onToggle }: { done: boolean; onToggle: () =>
       className={cn(
         "mt-0.5 grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full border-[1.5px] border-muted-foreground p-0 text-transparent hover:border-primary",
         done && "border-primary bg-primary text-primary-foreground",
+        // Trello gibi: tamamlanmamış kartta daire yalnızca üzerine gelince açılır
+        hoverOnly &&
+          !done &&
+          "mr-0 w-0 overflow-hidden border-0 opacity-0 transition-all group-hover/card:mr-2 group-hover/card:w-[18px] group-hover/card:border-[1.5px] group-hover/card:opacity-100",
+        hoverOnly && done && "mr-2",
       )}
     >
       <Check className="h-[11px] w-[11px]" strokeWidth={3} />
@@ -68,8 +73,8 @@ export function TaskCardView({
   onToggle?: () => void;
 }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg border bg-card px-2.5 py-[9px] hover:border-primary">
-      <CheckCircle done={task.isCompleted} onToggle={onToggle ?? (() => {})} />
+    <div className="group/card flex items-start rounded-lg bg-card px-2.5 py-1.5 shadow-sm ring-1 ring-inset ring-black/5 hover:ring-primary dark:ring-white/10">
+      <CheckCircle hoverOnly done={task.isCompleted} onToggle={onToggle ?? (() => {})} />
       <div className="min-w-0 flex-1">
         <div className={cn("[overflow-wrap:anywhere]", task.isCompleted && "text-muted-foreground line-through")}>
           {task.title || "Başlıksız görev"}

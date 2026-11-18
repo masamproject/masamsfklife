@@ -57,7 +57,7 @@ export function TaskColumn({
   return (
     <section
       aria-label={list.title}
-      className="flex min-h-0 min-w-[260px] flex-1 basis-[260px] snap-start flex-col rounded-[10px] bg-muted p-2 max-md:w-[280px] max-md:flex-none"
+      className="group/col flex max-h-full min-h-0 w-[272px] flex-none snap-start flex-col self-start rounded-xl bg-muted p-2"
     >
       <div className="flex shrink-0 items-center gap-1.5 px-1 pb-2 pt-0.5">
         <input
@@ -110,7 +110,7 @@ export function TaskColumn({
         </div>
       )}
 
-      <div ref={setNodeRef} className={cn("flex min-h-[44px] flex-1 flex-col gap-2 overflow-y-auto rounded-lg p-0.5", isOver && "bg-primary-soft")}>
+      <div ref={setNodeRef} className={cn("flex min-h-[8px] flex-col gap-2 overflow-y-auto rounded-lg p-0.5", isOver && "bg-primary-soft")}>
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((t) => (
             <SortableTask key={t.id} task={t} desktop={desktop} showProject={showProject} onToggle={() => onToggle(t)} />
